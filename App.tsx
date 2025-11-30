@@ -118,18 +118,16 @@ export default function App() {
     imageSize: '1K'
   }));
 
-  // --- NOVA LÓGICA DE SOM ---
-  const playMessageSound = (type: 'sent' | 'received') => {
-    // Como só tens o received.mp3, usamos para ambos por agora
-    // Se arranjares um 'sent.mp3', muda para: type === 'sent' ? '/sounds/sent.mp3' : '/sounds/received.mp3'
+  // --- LÓGICA DE SOM ---
+  const playMessageSound = () => {
+    // Toca o som apenas quando o Zézé responde
     const soundFile = '/sounds/received.mp3'; 
     
     try {
       const audio = new Audio(soundFile);
       audio.volume = 0.5;
       audio.play().catch(e => {
-        // Ignora erros de autoplay (comum se o user ainda não interagiu com a página)
-        // console.log("Audio play prevented"); 
+        // Ignora erros de autoplay se não houver interação
       });
     } catch (error) {
       console.error("Erro ao tocar som:", error);
@@ -137,7 +135,6 @@ export default function App() {
   };
 
   useEffect(() => {
-    // Pequeno delay para garantir que o layout mobile redimensionou (teclado abriu)
     setTimeout(() => {
         if (scrollRef.current) {
           scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -240,8 +237,7 @@ export default function App() {
   const handleNegotiationMessage = async (text: string) => {
     if (!text.trim() || isLoading) return;
     
-    // Tocar som de ENVIO (usa o received.mp3 por enquanto)
-    playMessageSound('sent');
+    // REMOVIDO: playMessageSound('sent');
 
     if (isListening) { try { recognitionRef.current.stop(); } catch(e){} }
     if (isAudioEnabled) initAudio();
@@ -254,8 +250,8 @@ export default function App() {
     try {
       const response = await sendGunaMessage(gameState, text);
       
-      // Tocar som de RESPOSTA
-      playMessageSound('received');
+      // Som da RESPOSTA apenas
+      playMessageSound();
 
       const newPatience = Math.max(0, Math.min(100, gameState.patience + response.patienceChange));
       
@@ -332,8 +328,8 @@ export default function App() {
       const msgId = Date.now().toString();
       const msg: Message = { id: msgId, sender: 'zeze', text: storyTurn.narrative };
       
-      // Som ao iniciar história
-      playMessageSound('received');
+      // Som ao receber narrativa inicial
+      playMessageSound();
 
       setGameState(prev => ({
         ...prev,
@@ -351,8 +347,7 @@ export default function App() {
   };
 
   const handleStoryChoice = async (choice: string) => {
-    // Som da escolha do user
-    playMessageSound('sent');
+    // REMOVIDO: playMessageSound('sent');
 
     setGameState(prev => ({
         ...prev,
@@ -366,8 +361,8 @@ export default function App() {
     try {
         const storyTurn = await generateStoryTurn(history, choice);
         
-        // Som da resposta da história
-        playMessageSound('received');
+        // Som da RESPOSTA da história
+        playMessageSound();
 
         const msgId = (Date.now() + 1).toString();
         const msg: Message = { id: msgId, sender: 'zeze', text: storyTurn.narrative };
@@ -402,8 +397,8 @@ export default function App() {
       isStoryLoading: false,
       imageSize: gameState.imageSize 
     });
-    // Som ao iniciar negociação
-    playMessageSound('received');
+    // Som inicial da negociação (Zézé a começar)
+    playMessageSound();
     setShowMenu(false);
   };
 
