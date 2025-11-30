@@ -1,11 +1,10 @@
-
 export enum GameStatus {
   PLAYING = 'playing',
-  WON = 'won',       // Comprou barato (< 100€)
-  LOST = 'lost',     // Zézé foi embora (Paciência 0)
-  PRISON = 'prison', // Zézé foi preso (Chamar a bófia)
-  SCAMMED = 'scammed', // Comprou caro (> 400€) -> Tijolo
-  ROBBED = 'robbed',   // Agressão física (Paciência 0 + Insultos graves)
+  WON = 'won',
+  LOST = 'lost',
+  PRISON = 'prison',
+  SCAMMED = 'scammed',
+  ROBBED = 'robbed',
   DRAW = "DRAW"
 }
 
@@ -14,39 +13,48 @@ export type ImageSize = '1K' | '2K' | '4K';
 
 export interface Message {
   id: string;
-  sender: 'user' | 'zeze' | 'system'; // Added system for narrator
+  sender: 'user' | 'zeze' | 'system';
   text: string;
-  imageUrl?: string; // URL/Base64 of the generated image
-  videoUrl?: string; // URL/Blob of the generated video
+  imageUrl?: string;
+  videoUrl?: string;
 }
 
 export interface GameState {
   mode: GameMode;
-  patience: number; // 0 to 100
+  patience: number;
   currentPrice: number;
   status: GameStatus;
   messages: Message[];
   turnCount: number;
-  // Story Mode Specifics
   storyOptions: string[];
   isStoryLoading: boolean;
   imageSize: ImageSize;
+  isTyping: boolean; // NOVO: Para controlar o estado de escrita
 }
 
 export interface GeminiResponse {
   text: string;
-  patienceChange: number; // How much patience changed this turn
+  patienceChange: number;
   newPrice: number;
   gameStatus: GameStatus;
-  imagePrompt?: string; // Optional prompt for image generation
+  imagePrompt?: string;
 }
 
 export interface StoryResponse {
-  narrative: string; // The situation description + Zeze dialogue
-  options: string[]; // 2 to 4 choices for the user
+  narrative: string;
+  options: string[];
   gameOver: boolean;
   endingType?: 'good' | 'bad' | 'funny' | 'death';
-  imagePrompt?: string; // Optional prompt for image generation
+  imagePrompt?: string;
+}
+
+// NOVO: Definição de Achievement
+export interface Achievement {
+  id: string;
+  title: string;
+  description: string;
+  icon: string;
+  unlockedAt?: number; // Timestamp de quando desbloqueou
 }
 
 export interface GameResult {
@@ -60,7 +68,8 @@ export interface GameStatistics {
   wins: number;
   losses: number;
   totalTurns: number;
-  bestDeal: number | null; // Lowest price bought (Won)
-  lowestPriceSeen: number; // Lowest price ever offered by Zézé
-  recentResults: GameResult[]; // Last 5 games
+  bestDeal: number | null;
+  lowestPriceSeen: number;
+  recentResults: GameResult[];
+  achievements: Achievement[]; // NOVO: Lista de conquistas
 }
