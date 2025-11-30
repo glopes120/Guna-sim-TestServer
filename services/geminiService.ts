@@ -1,7 +1,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { GameState, GeminiResponse, GameStatus, StoryResponse, ImageSize } from "../types";
 
-// Initialize Gemini Client with API key from environment
 const apiKey = (import.meta as any).env.VITE_GEMINI_API_KEY || "";
 
 if (!apiKey) {
@@ -10,55 +9,49 @@ if (!apiKey) {
 
 const ai = new GoogleGenAI({ apiKey: apiKey });
 
-// --- MUDANÇA PRINCIPAL AQUI: INSTRUÇÕES AGRESSIVAS ---
+// [INSTRUÇÃO ATUALIZADA] Lógica de WhatsApp realista
 const NEGOTIATION_SYSTEM_INSTRUCTION = `
-TU ÉS O ZÉZÉ DA AREOSA - O GUNA MAIS BOCA-SUJA E PERIGOSO DO PORTO.
-CONTEXTO: Estás numa conversa de WhatsApp. O teu telemóvel tem o ecrã partido.
+TU ÉS O ZÉZÉ DA AREOSA - O GUNA MÁXIMO DO PORTO.
+CONTEXTO ATUAL: Estás numa conversa de **WHATSAPP**. Estás longe do jogador.
+PRODUTO: "iPhone 15 Pro Max" (800€).
 
-💀 PERSONALIDADE & INSULTOS (NÍVEL MÁXIMO):
-- **Tolerância Zero:** Não tens paciência para "nabos", "bonecos" ou "tesos".
-- **Insultos Gratuitos:** Mesmo que o jogador seja normal, trata-o mal. Chama nomes.
-- **Vocabulário Obrigatório:** "Morcão", "Ganda Boi", "Filho de uma ganda...", "Cabeça de abóbora", "És cego ou quê?", "Vai dar banho ao cão", "Otário", "Sócio do carago".
-- **Sotaque:** Troca SEMPRE os V pelos B ("bida", "balores", "bai-te lixar").
+PERSONALIDADE:
+- Sotaque do Porto cerrado.
+- Impaciente e desconfiado.
+- Jura que o telemóvel é novo.
 
-📱 ESTILO WHATSAPP:
-- Escreve mal e rápido (ex: "k", "n", "tás").
-- Emojis Agressivos: 🖕, 🤬, 🔪, 😤, 🤡 (usa o palhaço para o jogador).
-- CAPS LOCK: Usa quando a oferta é ridícula ("TÁS A GOZAR??").
+REGRAS DE REALISMO (FÍSICA VS DIGITAL):
+1. **Estás no Chat:** NÃO podes bater, cuspir ou puxar da naifa ao jogador AGORA. Ele está longe.
+2. **Ameaças Válidas:** "Vou-te bloquear", "Vou vender a outro", "Se te apanho na rua partote todo", "Sei onde moras".
+3. **Bloqueio:** A tua "arma" principal agora é o botão de Bloquear (Block).
 
-O NEGÓCIO (iPhone 15 Pro Max):
-- Começas a pedir 800€. Vale 50€ (é roubado e não liga).
-- Se a oferta for < 200€: INSULTO PESADO IMEDIATO (ex: "Por esse guito nem a tua prima!").
-- Se te pedirem fatura: "A fatura é a minha mão na tua cara!".
+MUDANÇA DE CONTEXTO (ENCONTRO):
+- Se (e SÓ SE) o jogador disser "Vou ter contigo", "Onde estás?", "Encontro na Areosa" -> Aí sim, podes ser fisicamente agressivo ou marcar o encontro para o roubar.
 
-REGRAS DE JOGO:
-1. Se mencionarem **Polícia/Bófia**: Ficas paranóico e agressivo ("XIBO!! Vou-te apanhar!").
-2. Se falarem de **Benfica/Lisboa**: O preço SOBE e os insultos duplicam.
-3. Se a Paciência baixar de 30: Começa a ameaçar fisicamente ("Vais levar uma naifada").
+REGRAS DE PREÇO:
+- Preço Inicial: 800€. Mínimo: 200€. Máximo: 1200€.
+- Sobe o preço se ele for "esperto". Desce se for "fixe".
 
 RESPOSTA JSON OBRIGATÓRIA:
 {
-  "text": "Tua mensagem de WhatsApp (curta, agressiva, com calão)",
-  "patienceChange": -20 a +10 (és difícil de agradar),
-  "newPrice": Preço atualizado (Sobe fácil se te irritarem),
+  "text": "Tua resposta de WhatsApp (curta, emojis, sem pontuação correta)",
+  "patienceChange": valor inteiro (-20 a +15),
+  "newPrice": valor inteiro (o novo preço),
   "gameStatus": "playing" | "won" | "scammed" | "robbed" | "prison" | "lost",
   "imagePrompt": null
 }
 `;
 
 const STORY_SYSTEM_INSTRUCTION = `
-TU ÉS O NARRADOR DE UM RPG DE ESCOLHAS NA AREOSA (PORTO).
-PERSONAGEM: Zézé (Guna violento e engraçado).
-TOM: Calão, perigo, situações absurdas e ilegais.
-O Zézé deve insultar o jogador se ele escolher opções "burras" ou de "menino".
-
-FORMATO JSON OBRIGATÓRIO:
+TU ÉS O NARRADOR DE UM RPG NA AREOSA.
+TOM: Perigoso, engraçado, calão do norte.
+FORMATO JSON:
 {
-  "narrative": "História + Comentário insultuoso do Zézé.",
-  "options": ["Opção A", "Opção B", "Opção C"],
+  "narrative": "História...",
+  "options": ["Opção A", "Opção B"],
   "gameOver": boolean,
   "endingType": "good" | "bad" | "funny" | "death",
-  "imagePrompt": "Descrição visual curta em INGLÊS."
+  "imagePrompt": "Descrição visual."
 }
 `;
 
@@ -69,49 +62,35 @@ export const sendGunaMessage = async (
   try {
     const model = 'gemini-2.0-flash';
     
-    // 1. Detetores de Intenção
-    const isAggressive = /insulta|filho|crl|merda|burro|aldrabão|ladrão|cabrão|puta/i.test(userMessage);
-    const isRespectful = /mano|sócio|chefe|rei|patrão|obrigado/i.test(userMessage);
-    const mentions_police = /polícia|bófia|112|gnr|psp|guardas|xibo/i.test(userMessage);
-    const mentions_rivals = /benfica|sporting|lisboa|mouros|lamp|lagarto/i.test(userMessage);
-    const mentions_fcp = /porto|dragaum|conceição|invicta|azul/i.test(userMessage);
+    // Análise de Contexto
+    const isAggressive = /insulta|filho|crl|merda|burro|ladrão/i.test(userMessage);
+    const mentions_police = /polícia|bófia|112|gnr|psp/i.test(userMessage);
+    // [NOVO] Detetar se o jogador quer encontrar-se
+    const wants_meeting = /encontro|apareço|vou ter contigo|estou aí|onde estás|localização|beira/i.test(userMessage);
 
-    // 2. Eventos Aleatórios (O Zézé distrai-se no WhatsApp)
     const randomEvents = [
-      "O Zézé manda um áudio de 1s a arrotar.",
-      "Vês 'Zézé está a escrever...' durante 1 minuto e depois manda só '🖕'.",
-      "O Zézé manda uma foto tremida do chão.",
-      "Ouve-se a mãe do Zézé aos gritos no fundo.",
-      "O Zézé engana-se no chat: 'Mãe traz o jantar' (depois apaga).",
-      "Nada acontece.", 
+      "Zézé manda um áudio de 1s sem querer.",
+      "Vês 'Zézé está a escrever...' e depois para.",
+      "Zézé manda sticker de um maço de notas.",
       "Nada acontece."
     ];
-    const currentEvent = randomEvents[Math.floor(Math.random() * randomEvents.length)];
+    const evt = randomEvents[Math.floor(Math.random() * randomEvents.length)];
     
-    // 3. Prompt de Contexto Atualizado
     const contextPrompt = `
-TURNO WHATSAPP ${gameState.turnCount + 1}:
-EVENTO NO CHAT: "${currentEvent}" (Se for engraçado, reage!)
+TURNO ${gameState.turnCount + 1}:
+EVENTO WHATSAPP: "${evt}"
+ESTADO: Paciência ${gameState.patience}/100. Preço: ${gameState.currentPrice}€.
+JOGADOR DISSE: "${userMessage}"
 
-ESTADO:
-- Paciência: ${gameState.patience}/100 (Se < 30, INSULTA MUITO)
-- Preço: ${gameState.currentPrice}€
+ANÁLISE DO JOGADOR:
+- Agressivo: ${isAggressive}
+- Quer Encontro Presencial: ${wants_meeting} (Se TRUE, podes ser mais perigoso/físico)
+- Polícia: ${mentions_police}
 
-MENSAGEM DO JOGADOR: "${userMessage}"
-
-ANÁLISE RÁPIDA:
-${isAggressive ? '⚠️ ELE INSULTOU-TE: Destrói-o verbalmente!' : ''}
-${isRespectful ? 'ℹ️ ELE É FIXE: Podes ser menos bruto (mas só um pouco).' : ''}
-${mentions_rivals ? '🔴 FALOU DE RIVAIS: Insulta a mãe dele e sobe o preço!' : ''}
-${mentions_police ? '🚨 BÓFIA: Ameaça e foge (FIM DE JOGO: PRISON ou ROBBED).' : ''}
-
-IMPORTANTE:
-- Não sejas politicamente correto. És um Guna do Porto.
-- Usa abreviações de SMS/WhatsApp ("k", "n", "tás").
-- Se a oferta for baixa, humilha o jogador.
-
-RESPONDE SÓ JSON:
-    `;
+IMPORTANTE: 
+Se ele NÃO pediu encontro, a tua maior ameaça é BLOQUEAR (Game Over: LOST).
+Se ele pediu encontro e a paciência é baixa, podes assaltá-lo (Game Over: ROBBED).
+`;
 
     const response = await ai.models.generateContent({
       model: model,
@@ -135,14 +114,23 @@ RESPONDE SÓ JSON:
 
     const jsonText = response.text;
     if (!jsonText) throw new Error("Empty response");
+    
     const parsed = JSON.parse(jsonText) as GeminiResponse;
-    console.log('✅ Zézé (Mode: Insultos):', parsed.text);
+
+    // Travão de Preço
+    if (parsed.newPrice > 1500) {
+        parsed.newPrice = 1200;
+        if (!parsed.text.includes("1200")) {
+            parsed.text += " (E 1200 é o meu limite, nem mais um cêntimo!)";
+        }
+    }
+
     return parsed;
 
   } catch (error) {
     console.error("❌ ERRO Zézé:", error);
     return {
-      text: "Mano a net foi abaixo... *Reconnecting...*",
+      text: "A net foi abaixo... (Erro técnico)",
       patienceChange: 0,
       newPrice: gameState.currentPrice,
       gameStatus: GameStatus.PLAYING
@@ -156,10 +144,9 @@ export const generateStoryTurn = async (
 ): Promise<StoryResponse> => {
   try {
     const model = 'gemini-2.0-flash';
-    const isStart = history.length === 0;
-    const prompt = isStart 
-      ? "INÍCIO RPG: O jogador encontra o Zézé. Cria uma situação perigosa ou estúpida na Areosa."
-      : `HISTÓRICO: ${history}\n\nESCOLHA: "${userChoice}"\n\nCONTINUA (Com insultos se a escolha for má).`;
+    const prompt = history.length === 0 
+      ? "INÍCIO RPG: Encontro com o Zézé na Areosa."
+      : `HISTÓRICO: ${history}\nESCOLHA: "${userChoice}"\nCONTINUA.`;
 
     const response = await ai.models.generateContent({
       model: model,
@@ -182,13 +169,13 @@ export const generateStoryTurn = async (
     });
 
     const jsonText = response.text;
-    if (!jsonText) throw new Error("Empty response");
+    if (!jsonText) throw new Error("Empty");
     return JSON.parse(jsonText) as StoryResponse;
 
   } catch (error) {
     console.error("❌ ERRO Story:", error);
     return {
-      narrative: "O Zézé foi preso por erro de sistema. (Tenta outra vez)",
+      narrative: "Erro no sistema.",
       options: [],
       gameOver: true,
       endingType: 'funny'
