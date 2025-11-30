@@ -118,8 +118,26 @@ export default function App() {
     imageSize: '1K'
   }));
 
-  // [MODIFICAÇÃO 1] Scroll com delay para dar tempo ao teclado de abrir
+  // --- NOVA LÓGICA DE SOM ---
+  const playMessageSound = (type: 'sent' | 'received') => {
+    // Como só tens o received.mp3, usamos para ambos por agora
+    // Se arranjares um 'sent.mp3', muda para: type === 'sent' ? '/sounds/sent.mp3' : '/sounds/received.mp3'
+    const soundFile = '/sounds/received.mp3'; 
+    
+    try {
+      const audio = new Audio(soundFile);
+      audio.volume = 0.5;
+      audio.play().catch(e => {
+        // Ignora erros de autoplay (comum se o user ainda não interagiu com a página)
+        // console.log("Audio play prevented"); 
+      });
+    } catch (error) {
+      console.error("Erro ao tocar som:", error);
+    }
+  };
+
   useEffect(() => {
+    // Pequeno delay para garantir que o layout mobile redimensionou (teclado abriu)
     setTimeout(() => {
         if (scrollRef.current) {
           scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -222,6 +240,9 @@ export default function App() {
   const handleNegotiationMessage = async (text: string) => {
     if (!text.trim() || isLoading) return;
     
+    // Tocar som de ENVIO (usa o received.mp3 por enquanto)
+    playMessageSound('sent');
+
     if (isListening) { try { recognitionRef.current.stop(); } catch(e){} }
     if (isAudioEnabled) initAudio();
 
@@ -232,6 +253,10 @@ export default function App() {
 
     try {
       const response = await sendGunaMessage(gameState, text);
+      
+      // Tocar som de RESPOSTA
+      playMessageSound('received');
+
       const newPatience = Math.max(0, Math.min(100, gameState.patience + response.patienceChange));
       
       const zezeMsgId = (Date.now() + 1).toString();
@@ -307,6 +332,9 @@ export default function App() {
       const msgId = Date.now().toString();
       const msg: Message = { id: msgId, sender: 'zeze', text: storyTurn.narrative };
       
+      // Som ao iniciar história
+      playMessageSound('received');
+
       setGameState(prev => ({
         ...prev,
         messages: [msg],
@@ -323,6 +351,9 @@ export default function App() {
   };
 
   const handleStoryChoice = async (choice: string) => {
+    // Som da escolha do user
+    playMessageSound('sent');
+
     setGameState(prev => ({
         ...prev,
         storyOptions: [], 
@@ -334,6 +365,10 @@ export default function App() {
 
     try {
         const storyTurn = await generateStoryTurn(history, choice);
+        
+        // Som da resposta da história
+        playMessageSound('received');
+
         const msgId = (Date.now() + 1).toString();
         const msg: Message = { id: msgId, sender: 'zeze', text: storyTurn.narrative };
         
@@ -367,6 +402,8 @@ export default function App() {
       isStoryLoading: false,
       imageSize: gameState.imageSize 
     });
+    // Som ao iniciar negociação
+    playMessageSound('received');
     setShowMenu(false);
   };
 
@@ -393,7 +430,6 @@ export default function App() {
   };
 
   return (
-    // [MODIFICAÇÃO 2] Altura Dinâmica (100dvh) para mobile
     <div className="flex justify-center items-center h-[100dvh] w-screen bg-gradient-to-br from-[#000000] via-[#0b141a] to-[#000000] p-0 md:p-4 lg:p-6 font-sans fixed inset-0 supports-[height:100svh]:h-[100svh]">
       <StatsModal stats={stats} isOpen={showStats} onClose={() => setShowStats(false)} onReset={() => setStats(clearStats())} />
 
@@ -505,7 +541,6 @@ export default function App() {
                     onRestart={startStoryMode}
                 />
             ) : (
-                // [MODIFICAÇÃO 3] Padding Bottom Dinâmico para Safe Area
                 <div className="bg-gradient-to-t from-[#202c33] to-[#1a2326] p-2 md:p-3 pb-[max(0.5rem,env(safe-area-inset-bottom))] flex items-end gap-1.5 md:gap-2 shrink-0 z-20 relative shadow-2xl border-t border-[#2a3942]/40">
                     {speechError && (
                         <div className="absolute -top-16 left-1/2 transform -translate-x-1/2 bg-red-600/95 text-white text-xs font-bold px-3 md:px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 animate-bounce z-50 whitespace-nowrap border border-red-500/50">
