@@ -17,7 +17,7 @@ declare global {
   }
 }
 
-// Icons
+// --- ÍCONES ---
 const SendIcon = () => (
   <svg viewBox="0 0 24 24" width="24" height="24" className="fill-[#8696a0]">
     <path d="M1.101 21.757L23.8 12.028 1.101 2.3l.011 7.912 13.623 1.816-13.623 1.817-.011 7.912z"></path>
@@ -63,6 +63,18 @@ const OPENING_LINES = [
   "Ei sócio! Xira aí! Tenho aqui uma cena que até te saltam as vistas! Um iPhone 15 Pro Max, caído do camião... quer dizer, novinho em folha! É máquina de guerra, tá-se a ber? 800 paus e é teu.",
   "Oube lá mano! Psst! Anda cá! Queres um telemóvel topo de gama? iPhone 15, coisa fina. O antigo dono... digamos que já não precisa dele. 800 aéreos.",
   "Boas chefe! Tás com cara de quem precisa de um upgrade e curte do FCP! Tenho aqui o bicho! iPhone 15 Pro Max. Ainda cheira a novo! Só 800 paus para ti.",
+];
+
+// --- SUGESTÕES DE RESPOSTA RÁPIDA ---
+const QUICK_REPLIES = [
+  "Dou-te 50€ e é muito!",
+  "Mostra a fatura!",
+  "Isso é roubado!",
+  "Aceito o negócio",
+  "Sou do Porto carago!",
+  "Vou chamar a bófia",
+  "Trocas por um Nokia?",
+  "Tenho família na Areosa"
 ];
 
 const getRandomLine = (lines: string[]) => lines[Math.floor(Math.random() * lines.length)];
@@ -118,19 +130,20 @@ export default function App() {
     imageSize: '1K'
   }));
 
-  // --- LÓGICA DE SOM ---
+  // --- SOM ---
   const playMessageSound = () => {
-    // Toca o som apenas quando o Zézé responde
     const soundFile = '/sounds/received.mp3'; 
-    
     try {
       const audio = new Audio(soundFile);
       audio.volume = 0.5;
-      audio.play().catch(e => {
-        // Ignora erros de autoplay se não houver interação
-      });
-    } catch (error) {
-      console.error("Erro ao tocar som:", error);
+      audio.play().catch(() => {});
+    } catch (error) { console.error(error); }
+  };
+
+  // --- VIBRAÇÃO (HAPTIC) ---
+  const triggerHaptic = (pattern: number | number[] = 15) => {
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+      navigator.vibrate(pattern);
     }
   };
 
@@ -153,17 +166,15 @@ export default function App() {
                       messages: [...prev.messages, { id: msgId, sender: 'system', text: "A gerar final..." }]
                   }));
                   
-                  try {
-                        console.log('📸 Imagem final desativada (quota esgotada)');
-                        setGameState(prev => ({
-                          ...prev,
-                          messages: prev.messages.map(m => 
-                            m.id === msgId ? { ...m, text: "FIM DE JOGO" } : m
-                          )
-                        }));
-                  } catch (e) {
-                      console.error("Ending image failed", e);
-                  }
+                  // Simulação de delay para final
+                  setTimeout(() => {
+                    setGameState(prev => ({
+                        ...prev,
+                        messages: prev.messages.map(m => 
+                          m.id === msgId ? { ...m, text: "FIM DE JOGO" } : m
+                        )
+                      }));
+                  }, 1000);
               }
           }
       };
@@ -171,16 +182,13 @@ export default function App() {
       generateEndingVisual();
   }, [gameState.status, gameState.mode, gameState.imageSize]);
 
+  // Funções de Áudio (mantidas mas simplificadas)
   const initAudio = () => {
     if (!audioContextRef.current) {
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-      if (AudioContextClass) {
-        audioContextRef.current = new AudioContextClass({ sampleRate: 24000 });
-      }
+      if (AudioContextClass) audioContextRef.current = new AudioContextClass({ sampleRate: 24000 });
     }
-    if (audioContextRef.current?.state === 'suspended') {
-      audioContextRef.current.resume();
-    }
+    if (audioContextRef.current?.state === 'suspended') audioContextRef.current.resume();
   };
 
   useEffect(() => {
@@ -191,7 +199,7 @@ export default function App() {
          recognition.continuous = false;
          recognition.interimResults = true;
          recognition.lang = 'pt-PT';
-         recognition.onstart = () => { setIsListening(true); setSpeechError(null); };
+         recognition.onstart = () => { setIsListening(true); setSpeechError(null); triggerHaptic([50, 50, 50]); };
          recognition.onend = () => { setIsListening(false); };
          recognition.onresult = (event: any) => {
            const currentTranscript = Array.from(event.results).map((result: any) => result[0].transcript).join('');
@@ -203,41 +211,32 @@ export default function App() {
              let msg = "Erro no áudio";
              if (event.error === 'network') msg = "Falha na ligação";
              else if (event.error === 'not-allowed') msg = "Sem permissão";
-             else if (event.error === 'no-speech') return;
              setSpeechError(msg);
              setTimeout(() => setSpeechError(null), 3500);
+             triggerHaptic([50, 100, 50]);
          };
          recognitionRef.current = recognition;
        }
     }
   }, []);
 
-  const toggleAudio = () => {
-    initAudio();
-    setIsAudioEnabled(!isAudioEnabled);
-  };
+  const toggleAudio = () => { initAudio(); setIsAudioEnabled(!isAudioEnabled); };
 
   const toggleListening = () => {
     if (!recognitionRef.current) { setSpeechError("Navegador não suportado"); return; }
-    if (isListening) {
-      try { recognitionRef.current.stop(); } catch (e) {}
-    } else {
+    if (isListening) { try { recognitionRef.current.stop(); } catch (e) {} } 
+    else {
       setSpeechError(null);
       try { recognitionRef.current.abort(); } catch (e) {}
       setTimeout(() => { try { recognitionRef.current.start(); } catch (e) {} }, 150);
     }
   };
 
-  const processImagePrompt = async (messageId: string, imagePrompt: string | undefined, currentSize: ImageSize) => {
-    if (!imagePrompt) return;
-    console.log('📸 Geração de imagens desativada (quota esgotada)');
-    return;
-  };
-
   const handleNegotiationMessage = async (text: string) => {
     if (!text.trim() || isLoading) return;
     
-    // REMOVIDO: playMessageSound('sent');
+    // Feedback de envio
+    triggerHaptic(10); 
 
     if (isListening) { try { recognitionRef.current.stop(); } catch(e){} }
     if (isAudioEnabled) initAudio();
@@ -250,8 +249,13 @@ export default function App() {
     try {
       const response = await sendGunaMessage(gameState, text);
       
-      // Som da RESPOSTA apenas
+      // Feedback de resposta
       playMessageSound();
+      
+      // Vibração baseada na mudança de paciência (Paciência desce = Vibração Forte)
+      if (response.patienceChange < -10) triggerHaptic([50, 50, 100]); // Zézé irritado
+      else if (response.gameStatus === GameStatus.WON) triggerHaptic([100, 50, 100, 50, 200]); // Vitória!
+      else triggerHaptic(20); // Normal
 
       const newPatience = Math.max(0, Math.min(100, gameState.patience + response.patienceChange));
       
@@ -267,8 +271,7 @@ export default function App() {
         messages: [...prev.messages, zezeMsg]
       }));
 
-      processImagePrompt(zezeMsgId, response.imagePrompt, gameState.imageSize);
-
+      // Stats Update
       if (response.gameStatus !== GameStatus.PLAYING) {
          console.log('🎮 JOGO TERMINOU! Status:', response.gameStatus);
          const result: GameResult = {
@@ -280,18 +283,11 @@ export default function App() {
          newStats.gamesPlayed++;
          newStats.totalTurns += gameState.turnCount + 1;
          newStats.recentResults = [result, ...newStats.recentResults].slice(0, 5);
-         
          if (response.gameStatus === GameStatus.WON) {
              newStats.wins++;
-             if (!newStats.bestDeal || response.newPrice < newStats.bestDeal) {
-                 newStats.bestDeal = response.newPrice;
-             }
-         } else {
-             newStats.losses++;
-         }
-         
+             if (!newStats.bestDeal || response.newPrice < newStats.bestDeal) newStats.bestDeal = response.newPrice;
+         } else { newStats.losses++; }
          if (response.newPrice < newStats.lowestPriceSeen) newStats.lowestPriceSeen = response.newPrice;
-         
          setStats(newStats);
          saveStats(newStats);
       }
@@ -304,42 +300,20 @@ export default function App() {
   };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    console.log('📹 Video uploads disabled - Veo video generation removed');
-    return;
+    console.log('📹 Video uploads disabled');
   };
 
   const startStoryMode = async () => {
     setInMainMenu(false);
-    setGameState(prev => ({
-      ...prev,
-      mode: 'story',
-      patience: 100, 
-      currentPrice: 0,
-      status: GameStatus.PLAYING,
-      turnCount: 0,
-      messages: [],
-      storyOptions: [],
-      isStoryLoading: true
-    }));
+    setGameState(prev => ({ ...prev, mode: 'story', patience: 100, currentPrice: 0, status: GameStatus.PLAYING, turnCount: 0, messages: [], storyOptions: [], isStoryLoading: true }));
     setShowMenu(false);
 
     try {
       const storyTurn = await generateStoryTurn("", "");
       const msgId = Date.now().toString();
       const msg: Message = { id: msgId, sender: 'zeze', text: storyTurn.narrative };
-      
-      // Som ao receber narrativa inicial
       playMessageSound();
-
-      setGameState(prev => ({
-        ...prev,
-        messages: [msg],
-        storyOptions: storyTurn.options,
-        isStoryLoading: false
-      }));
-
-      processImagePrompt(msgId, storyTurn.imagePrompt, gameState.imageSize);
-
+      setGameState(prev => ({ ...prev, messages: [msg], storyOptions: storyTurn.options, isStoryLoading: false }));
     } catch (e) {
       console.error(e);
       setGameState(prev => ({ ...prev, isStoryLoading: false }));
@@ -347,74 +321,30 @@ export default function App() {
   };
 
   const handleStoryChoice = async (choice: string) => {
-    // REMOVIDO: playMessageSound('sent');
-
-    setGameState(prev => ({
-        ...prev,
-        storyOptions: [], 
-        isStoryLoading: true,
-        messages: [...prev.messages, { id: Date.now().toString(), sender: 'user', text: choice }]
-    }));
-
+    triggerHaptic(10);
+    setGameState(prev => ({ ...prev, storyOptions: [], isStoryLoading: true, messages: [...prev.messages, { id: Date.now().toString(), sender: 'user', text: choice }] }));
     const history = gameState.messages.slice(-3).map(m => `${m.sender}: ${m.text}`).join('\n');
 
     try {
         const storyTurn = await generateStoryTurn(history, choice);
-        
-        // Som da RESPOSTA da história
         playMessageSound();
-
         const msgId = (Date.now() + 1).toString();
         const msg: Message = { id: msgId, sender: 'zeze', text: storyTurn.narrative };
-        
         const newStatus = storyTurn.gameOver ? GameStatus.WON : GameStatus.PLAYING; 
-        
-        setGameState(prev => ({
-            ...prev,
-            messages: [...prev.messages, msg],
-            storyOptions: storyTurn.options,
-            status: newStatus,
-            isStoryLoading: false
-        }));
-
-        processImagePrompt(msgId, storyTurn.imagePrompt, gameState.imageSize);
-
-    } catch (e) {
-        setGameState(prev => ({ ...prev, isStoryLoading: false }));
-    }
+        setGameState(prev => ({ ...prev, messages: [...prev.messages, msg], storyOptions: storyTurn.options, status: newStatus, isStoryLoading: false }));
+    } catch (e) { setGameState(prev => ({ ...prev, isStoryLoading: false })); }
   };
 
   const startNegotiationGame = () => {
     setInMainMenu(false);
-    setGameState({
-      mode: 'negotiation',
-      patience: 50,
-      currentPrice: 800,
-      status: GameStatus.PLAYING,
-      turnCount: 0,
-      messages: [{ id: Date.now().toString(), sender: 'zeze', text: getRandomLine(OPENING_LINES) }],
-      storyOptions: [],
-      isStoryLoading: false,
-      imageSize: gameState.imageSize 
-    });
-    // Som inicial da negociação (Zézé a começar)
+    setGameState({ mode: 'negotiation', patience: 50, currentPrice: 800, status: GameStatus.PLAYING, turnCount: 0, messages: [{ id: Date.now().toString(), sender: 'zeze', text: getRandomLine(OPENING_LINES) }], storyOptions: [], isStoryLoading: false, imageSize: gameState.imageSize });
     playMessageSound();
     setShowMenu(false);
   };
 
-  const handleBackToMenu = () => {
-      setInMainMenu(true);
-      setShowMenu(false);
-  };
-
-  const restartNegotiation = () => {
-    startNegotiationGame();
-  };
-
-  const handleImageSizeChange = (size: ImageSize) => {
-    setGameState(prev => ({ ...prev, imageSize: size }));
-    setShowMenu(false);
-  }
+  const handleBackToMenu = () => { setInMainMenu(true); setShowMenu(false); };
+  const restartNegotiation = () => { startNegotiationGame(); };
+  const handleImageSizeChange = (size: ImageSize) => { setGameState(prev => ({ ...prev, imageSize: size })); setShowMenu(false); }
 
   const handleMainButtonClick = () => {
     if (gameState.mode === 'negotiation') {
@@ -429,65 +359,34 @@ export default function App() {
       <StatsModal stats={stats} isOpen={showStats} onClose={() => setShowStats(false)} onReset={() => setStats(clearStats())} />
 
       <div className="w-full h-full md:w-full md:h-[90vh] lg:max-w-[500px] lg:max-h-[850px] md:rounded-[28px] bg-[#0b141a] shadow-2xl flex flex-col overflow-hidden relative border-0 md:border md:border-[#2a3942]/30 md:hover:border-[#00a884]/20 md:transition-all md:duration-500">
-        
         <div className="hidden md:block absolute inset-0 rounded-[28px] pointer-events-none bg-gradient-to-b from-[#00a884]/10 via-transparent to-transparent opacity-0 hover:opacity-100 transition-opacity duration-500"></div>
         
         {inMainMenu ? (
-          <MainMenu 
-            onStartNegotiation={startNegotiationGame} 
-            onStartStory={startStoryMode} 
-            onOpenStats={() => setShowStats(true)} 
-          />
+          <MainMenu onStartNegotiation={startNegotiationGame} onStartStory={startStoryMode} onOpenStats={() => setShowStats(true)} />
         ) : (
           <>
             {showMenu && (
                 <div className="absolute top-14 right-2 md:right-4 bg-gradient-to-br from-[#202c33] to-[#1a2326] rounded-xl shadow-2xl z-50 border border-[#2a3942]/60 py-2 min-w-[220px] md:min-w-[240px] animate-slide-in-right backdrop-blur-subtle max-h-[60vh] overflow-y-auto">
-                    <button onClick={handleBackToMenu} className="w-full text-left px-4 py-3 hover:bg-[#00a884]/10 text-[#e9edef] flex items-center gap-3 transition-colors group text-sm md:text-base">
-                        <span className="text-xl group-hover:scale-125 transition-transform">🏠</span> 
-                        <span className="font-medium">Menu Principal</span>
-                    </button>
-                    <button onClick={restartNegotiation} className="w-full text-left px-4 py-3 hover:bg-[#00a884]/10 text-[#e9edef] flex items-center gap-3 transition-colors group text-sm md:text-base">
-                        <span className="text-xl group-hover:scale-125 transition-transform">🔄</span> 
-                        <span className="font-medium">Reiniciar Jogo</span>
-                    </button>
+                    <button onClick={handleBackToMenu} className="w-full text-left px-4 py-3 hover:bg-[#00a884]/10 text-[#e9edef] flex items-center gap-3 transition-colors group text-sm md:text-base"><span className="text-xl group-hover:scale-125 transition-transform">🏠</span> <span className="font-medium">Menu Principal</span></button>
+                    <button onClick={restartNegotiation} className="w-full text-left px-4 py-3 hover:bg-[#00a884]/10 text-[#e9edef] flex items-center gap-3 transition-colors group text-sm md:text-base"><span className="text-xl group-hover:scale-125 transition-transform">🔄</span> <span className="font-medium">Reiniciar Jogo</span></button>
                     <div className="divider-glow my-2"></div>
                     <div className="px-4 py-2 text-xs text-[#8696a0] font-bold uppercase">Qualidade Imagem</div>
-                    <div className="flex px-4 gap-2 mb-2">
-                        {(['1K', '2K', '4K'] as ImageSize[]).map((size) => (
-                          <button 
-                            key={size}
-                            onClick={() => handleImageSizeChange(size)}
-                            className={`flex-1 py-1.5 rounded-lg text-xs font-bold border-2 transition-all active:scale-95 ${gameState.imageSize === size ? 'bg-gradient-to-r from-[#00a884] to-[#008f6f] text-white border-[#00d9a3] shadow-lg shadow-[#00a884]/30' : 'text-[#8696a0] border-[#2a3942] hover:border-[#00a884]/50'}`}
-                          >
-                            {size}
-                          </button>
-                        ))}
-                    </div>
+                    <div className="flex px-4 gap-2 mb-2">{(['1K', '2K', '4K'] as ImageSize[]).map((size) => (<button key={size} onClick={() => handleImageSizeChange(size)} className={`flex-1 py-1.5 rounded-lg text-xs font-bold border-2 transition-all active:scale-95 ${gameState.imageSize === size ? 'bg-gradient-to-r from-[#00a884] to-[#008f6f] text-white border-[#00d9a3] shadow-lg shadow-[#00a884]/30' : 'text-[#8696a0] border-[#2a3942] hover:border-[#00a884]/50'}`}>{size}</button>))}</div>
                     <div className="divider-glow my-2"></div>
-                    <button onClick={() => setShowStats(true)} className="w-full text-left px-4 py-3 hover:bg-[#00a884]/10 text-[#e9edef] flex items-center gap-3 transition-colors group text-sm md:text-base">
-                        <span className="text-xl group-hover:scale-125 transition-transform">📊</span> 
-                        <span className="font-medium">Caderneta</span>
-                    </button>
+                    <button onClick={() => setShowStats(true)} className="w-full text-left px-4 py-3 hover:bg-[#00a884]/10 text-[#e9edef] flex items-center gap-3 transition-colors group text-sm md:text-base"><span className="text-xl group-hover:scale-125 transition-transform">📊</span> <span className="font-medium">Caderneta</span></button>
                 </div>
             )}
 
             <div className="px-2 md:px-3 py-2 md:py-2.5 bg-gradient-to-r from-[#202c33] to-[#1a2326] flex justify-between items-center z-20 shrink-0 shadow-md border-b border-[#2a3942]/40">
               <div className="flex items-center gap-1.5 md:gap-2 min-w-0">
-                <button onClick={handleBackToMenu} className="p-2 hover:bg-[#2a3942]/60 rounded-full transition-all duration-200 flex-shrink-0">
-                    <BackArrowIcon />
-                </button>
+                <button onClick={handleBackToMenu} className="p-2 hover:bg-[#2a3942]/60 rounded-full transition-all duration-200 flex-shrink-0"><BackArrowIcon /></button>
                 <div className="flex items-center gap-1.5 md:gap-2 cursor-pointer hover:bg-[#2a3942]/40 p-1 md:p-1.5 rounded-lg transition-all duration-200 min-w-0 flex-1 md:flex-none" onClick={() => setShowMenu(!showMenu)}>
                   <div className="w-10 md:w-11 h-10 md:h-11 rounded-full overflow-hidden flex-shrink-0 border-2 border-[#00a884]/60 bg-gradient-to-br from-slate-700 to-black shadow-lg shadow-[#00a884]/20">
                     <ZezeAvatar patience={gameState.mode === 'story' ? 100 : gameState.patience} isThinking={isLoading || gameState.isStoryLoading} />
                   </div>
                   <div className="flex flex-col justify-center min-w-0 flex-1 md:flex-none">
-                    <div className="text-[#e9edef] font-bold text-[13px] md:text-[15px] leading-tight flex items-center gap-1 truncate">
-                      Zézé 
-                      {gameState.mode === 'story' && <span className="text-[#00a884] text-[8px] md:text-[10px] font-black bg-[#00a884]/20 px-1.5 py-0.5 rounded-full border border-[#00a884]/40 flex-shrink-0">RPG</span>}
-                    </div>
-                    <div className="text-[#8696a0] text-[11px] md:text-[12px] truncate font-medium">
-                      {isLoading || gameState.isStoryLoading ? "✍️ a escrever..." : (isGeneratingVideo ? "🎬 a processar..." : "🟢 Online")}
-                    </div>
+                    <div className="text-[#e9edef] font-bold text-[13px] md:text-[15px] leading-tight flex items-center gap-1 truncate">Zézé {gameState.mode === 'story' && <span className="text-[#00a884] text-[8px] md:text-[10px] font-black bg-[#00a884]/20 px-1.5 py-0.5 rounded-full border border-[#00a884]/40 flex-shrink-0">RPG</span>}</div>
+                    <div className="text-[#8696a0] text-[11px] md:text-[12px] truncate font-medium">{isLoading || gameState.isStoryLoading ? "✍️ a escrever..." : (isGeneratingVideo ? "🎬 a processar..." : "🟢 Online")}</div>
                   </div>
                 </div>
               </div>
@@ -499,9 +398,7 @@ export default function App() {
 
             {gameState.mode === 'negotiation' && (
                 <div className="bg-gradient-to-r from-[#182229]/80 to-[#0f1a20]/80 px-3 md:px-4 py-2 flex justify-center border-b border-[#00a884]/20 z-10 backdrop-blur-sm">
-                <span className={`text-[11px] md:text-xs font-black text-[#00a884] uppercase flex items-center gap-1.5 md:gap-2 tracking-wider ${isPriceAnimating ? 'animate-price' : ''}`}>
-                    📱 iPhone 15 • <span className="text-[#00d9a3] font-black text-[12px] md:text-sm drop-shadow-lg">{gameState.currentPrice}€</span>
-                </span>
+                <span className={`text-[11px] md:text-xs font-black text-[#00a884] uppercase flex items-center gap-1.5 md:gap-2 tracking-wider ${isPriceAnimating ? 'animate-price' : ''}`}>📱 iPhone 15 • <span className="text-[#00d9a3] font-black text-[12px] md:text-sm drop-shadow-lg">{gameState.currentPrice}€</span></span>
                 </div>
             )}
 
@@ -512,77 +409,74 @@ export default function App() {
                   {gameState.messages.map((msg, idx) => (
                     <div key={msg.id} className={idx === gameState.messages.length - 1 ? 'animate-slide-in-left' : ''}>
                       <ChatMessage message={msg} />
+                      {/* Typing indicator simulator */}
+                      {isLoading && idx === gameState.messages.length - 1 && (
+                         <div className="ml-2 mt-1 mb-2 inline-flex bg-[#202c33] rounded-xl px-3 py-2 items-center gap-1 border border-[#2a3942]/40 rounded-tl-none animate-fade-in shadow-sm">
+                            <span className="w-1.5 h-1.5 bg-[#8696a0] rounded-full animate-bounce"></span>
+                            <span className="w-1.5 h-1.5 bg-[#8696a0] rounded-full animate-bounce delay-100"></span>
+                            <span className="w-1.5 h-1.5 bg-[#8696a0] rounded-full animate-bounce delay-200"></span>
+                         </div>
+                      )}
                     </div>
                   ))}
                   
                   {gameState.mode === 'negotiation' && gameState.status !== GameStatus.PLAYING && (
                       <div className="flex justify-center mt-6 pt-4 animate-bounce-subtle">
-                          <button onClick={restartNegotiation} className="bg-gradient-to-r from-[#00a884] to-[#008f6f] text-white px-6 md:px-8 py-2.5 md:py-3 rounded-full border-2 border-[#00d9a3] hover:shadow-[0_8px_20px_rgba(0,168,132,0.4)] font-black uppercase tracking-wider transition-all active:scale-95 shadow-lg text-sm md:text-base">
-                              🎮 JOGAR NOVAMENTE
-                          </button>
+                          <button onClick={restartNegotiation} className="bg-gradient-to-r from-[#00a884] to-[#008f6f] text-white px-6 md:px-8 py-2.5 md:py-3 rounded-full border-2 border-[#00d9a3] hover:shadow-[0_8px_20px_rgba(0,168,132,0.4)] font-black uppercase tracking-wider transition-all active:scale-95 shadow-lg text-sm md:text-base">🎮 JOGAR NOVAMENTE</button>
                       </div>
                   )}
-                  
                   <div className="h-4"></div>
                 </div>
             </div>
 
             {gameState.mode === 'story' ? (
-                <StoryControls 
-                    options={gameState.storyOptions} 
-                    onChoose={handleStoryChoice} 
-                    isLoading={gameState.isStoryLoading} 
-                    gameOver={gameState.status !== GameStatus.PLAYING}
-                    onRestart={startStoryMode}
-                />
+                <StoryControls options={gameState.storyOptions} onChoose={handleStoryChoice} isLoading={gameState.isStoryLoading} gameOver={gameState.status !== GameStatus.PLAYING} onRestart={startStoryMode} />
             ) : (
-                <div className="bg-gradient-to-t from-[#202c33] to-[#1a2326] p-2 md:p-3 pb-[max(0.5rem,env(safe-area-inset-bottom))] flex items-end gap-1.5 md:gap-2 shrink-0 z-20 relative shadow-2xl border-t border-[#2a3942]/40">
-                    {speechError && (
-                        <div className="absolute -top-16 left-1/2 transform -translate-x-1/2 bg-red-600/95 text-white text-xs font-bold px-3 md:px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 animate-bounce z-50 whitespace-nowrap border border-red-500/50">
-                            ⚠️ {speechError}
+                <div className="bg-gradient-to-t from-[#202c33] to-[#1a2326] p-2 md:p-3 pb-[max(0.5rem,env(safe-area-inset-bottom))] flex flex-col gap-0 shrink-0 z-20 relative shadow-2xl border-t border-[#2a3942]/40">
+                    
+                    {/* [NOVO] Sugestões de Resposta Rápida (Chips) */}
+                    {gameState.status === GameStatus.PLAYING && !isLoading && (
+                        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2 px-1 mb-1">
+                            {QUICK_REPLIES.map((reply, i) => (
+                                <button 
+                                    key={i}
+                                    onClick={() => handleNegotiationMessage(reply)}
+                                    className="whitespace-nowrap bg-[#2a3942] hover:bg-[#374248] text-[#e9edef] text-xs px-3 py-1.5 rounded-full border border-[#8696a0]/30 transition-colors active:scale-95 flex-shrink-0"
+                                >
+                                    {reply}
+                                </button>
+                            ))}
                         </div>
                     )}
-                    <div className="flex-1 bg-gradient-to-r from-[#2a3942]/80 to-[#202c33]/80 rounded-[20px] md:rounded-[24px] px-3 md:px-4 py-2 md:py-2.5 flex items-center gap-1.5 md:gap-2 min-h-[42px] md:min-h-[44px] border border-[#2a3942]/50 backdrop-blur-sm hover:border-[#00a884]/30 transition-colors">
-                        <button className="p-1.5 hover:bg-[#374248]/60 rounded-full transition-colors hidden md:block flex-shrink-0"><SmileyIcon /></button>
-                        <input
-                            ref={inputRef}
-                            type="text"
-                            value={input}
-                            onChange={(e) => setInput(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && handleMainButtonClick()}
-                            disabled={gameState.status !== GameStatus.PLAYING || isLoading}
-                            placeholder={isListening ? "🎤 A ouvir..." : (gameState.status === GameStatus.PLAYING ? "Mensagem" : "Bloqueado")}
-                            className={`bg-transparent text-[#e9edef] placeholder-[#8696a0] text-[14px] md:text-[15px] flex-1 outline-none w-full font-medium ${isListening ? 'animate-pulse text-[#00a884]' : ''}`}
-                        />
-                        <input 
-                          type="file" 
-                          accept="image/*" 
-                          ref={fileInputRef} 
-                          className="hidden" 
-                          onChange={handleFileUpload}
-                        />
-                        <button 
-                          onClick={() => fileInputRef.current?.click()} 
-                          className={`p-1.5 hover:bg-[#374248]/60 rounded-full transition-all duration-200 flex-shrink-0 ${isGeneratingVideo ? 'animate-spin-smooth text-[#00a884]' : ''}`}
-                          disabled={isGeneratingVideo}
-                        >
-                          <ClipIcon />
+
+                    {speechError && (
+                        <div className="absolute -top-16 left-1/2 transform -translate-x-1/2 bg-red-600/95 text-white text-xs font-bold px-3 md:px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 animate-bounce z-50 whitespace-nowrap border border-red-500/50">⚠️ {speechError}</div>
+                    )}
+                    <div className="flex items-end gap-1.5 md:gap-2">
+                        <div className="flex-1 bg-gradient-to-r from-[#2a3942]/80 to-[#202c33]/80 rounded-[20px] md:rounded-[24px] px-3 md:px-4 py-2 md:py-2.5 flex items-center gap-1.5 md:gap-2 min-h-[42px] md:min-h-[44px] border border-[#2a3942]/50 backdrop-blur-sm hover:border-[#00a884]/30 transition-colors">
+                            <button className="p-1.5 hover:bg-[#374248]/60 rounded-full transition-colors hidden md:block flex-shrink-0"><SmileyIcon /></button>
+                            <input
+                                ref={inputRef}
+                                type="text"
+                                value={input}
+                                onChange={(e) => setInput(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && handleMainButtonClick()}
+                                disabled={gameState.status !== GameStatus.PLAYING || isLoading}
+                                placeholder={isListening ? "🎤 A ouvir..." : (gameState.status === GameStatus.PLAYING ? "Mensagem" : "Bloqueado")}
+                                className={`bg-transparent text-[#e9edef] placeholder-[#8696a0] text-[14px] md:text-[15px] flex-1 outline-none w-full font-medium ${isListening ? 'animate-pulse text-[#00a884]' : ''}`}
+                            />
+                            <input type="file" accept="image/*" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
+                            <button onClick={() => fileInputRef.current?.click()} className={`p-1.5 hover:bg-[#374248]/60 rounded-full transition-all duration-200 flex-shrink-0 ${isGeneratingVideo ? 'animate-spin-smooth text-[#00a884]' : ''}`} disabled={isGeneratingVideo}><ClipIcon /></button>
+                        </div>
+                        
+                        {gameState.status === GameStatus.PLAYING && input.length === 0 && !isListening && (
+                            <button onClick={() => handleNegotiationMessage(`ACEITO O NEGÓCIO POR ${gameState.currentPrice} EUROS!`)} className="w-10 md:w-11 h-10 md:h-11 rounded-full flex items-center justify-center shadow-lg bg-gradient-to-r from-[#008f6f] to-[#006b52] hover:from-[#00a884] hover:to-[#008f6f] border-2 border-[#00d9a3]/50 hover:border-[#00d9a3] flex-shrink-0 transition-all active:scale-90 md:hover-lift touch-manipulation"><HandshakeIcon /></button>
+                        )}
+
+                        <button onClick={handleMainButtonClick} disabled={isLoading || gameState.status !== GameStatus.PLAYING} className={`w-10 md:w-11 h-10 md:h-11 rounded-full flex items-center justify-center shadow-lg transition-all flex-shrink-0 active:scale-90 touch-manipulation border-2 ${isListening ? 'bg-red-600/90 border-red-500 animate-pulse shadow-lg shadow-red-600/40' : 'bg-gradient-to-br from-[#00a884] to-[#008f6f] hover:from-[#00d9a3] hover:to-[#00a884] border-[#00d9a3]/50 hover:border-[#00d9a3] md:hover:shadow-lg md:hover:shadow-[#00a884]/40'}`}>
+                            {isListening ? <MicIcon /> : (input.trim() ? <SendIcon /> : <MicIcon />)}
                         </button>
                     </div>
-                    
-                    {gameState.status === GameStatus.PLAYING && input.length === 0 && !isListening && (
-                        <button onClick={() => handleNegotiationMessage(`ACEITO O NEGÓCIO POR ${gameState.currentPrice} EUROS!`)} className="w-10 md:w-11 h-10 md:h-11 rounded-full flex items-center justify-center shadow-lg bg-gradient-to-r from-[#008f6f] to-[#006b52] hover:from-[#00a884] hover:to-[#008f6f] border-2 border-[#00d9a3]/50 hover:border-[#00d9a3] flex-shrink-0 transition-all active:scale-90 md:hover-lift touch-manipulation">
-                            <HandshakeIcon />
-                        </button>
-                    )}
-
-                    <button 
-                        onClick={handleMainButtonClick}
-                        disabled={isLoading || gameState.status !== GameStatus.PLAYING}
-                        className={`w-10 md:w-11 h-10 md:h-11 rounded-full flex items-center justify-center shadow-lg transition-all flex-shrink-0 active:scale-90 touch-manipulation border-2 ${isListening ? 'bg-red-600/90 border-red-500 animate-pulse shadow-lg shadow-red-600/40' : 'bg-gradient-to-br from-[#00a884] to-[#008f6f] hover:from-[#00d9a3] hover:to-[#00a884] border-[#00d9a3]/50 hover:border-[#00d9a3] md:hover:shadow-lg md:hover:shadow-[#00a884]/40'}`}
-                    >
-                        {isListening ? <MicIcon /> : (input.trim() ? <SendIcon /> : <MicIcon />)}
-                    </button>
                 </div>
             )}
           </>
