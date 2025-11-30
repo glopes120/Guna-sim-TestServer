@@ -58,6 +58,16 @@ const ClipIcon = () => (
         <path d="M1.816 15.556v.002c0 1.502.584 2.912 1.646 3.972s2.472 1.647 3.974 1.647a5.58 5.58 0 0 0 3.972-1.645l9.547-9.548c.769-.768 1.147-1.767 1.058-2.817-.079-.968-.548-1.927-1.319-2.698-1.594-1.592-4.068-1.711-5.517-.262l-7.916 7.915c-.881.881-.792 2.25.214 3.261.959.958 2.423 1.053 3.263.215l5.511-5.512 1.28 1.28-5.514 5.514c-1.497 1.497-3.96 1.429-5.418-.038a3.813 3.813 0 0 1 0-5.384l7.916-7.915c1.211-1.211 3.224-1.211 4.439 0 .609.609.944 1.418.944 2.278 0 .86-.335 1.669-.944 2.278L9.418 17.653a3.633 3.633 0 0 1-2.576 1.079 3.636 3.636 0 0 1-2.577-1.079 3.642 3.642 0 0 1-1.077-2.578 3.655 3.655 0 0 1 1.077-2.578l.002-.001z"></path>
     </svg>
 )
+const GridIcon = () => (
+  <svg viewBox="0 0 24 24" width="20" height="20" className="fill-[#8696a0]">
+    <path d="M10 3H4a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1zM9 9H5V5h4v4zm10-6h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1zm-1 6h-4V5h4v4zM10 13H4a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-6a1 1 0 0 0-1-1zm-1 6H5v-4h4v4zm10-6h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-6a1 1 0 0 0-1-1zm-1 6h-4v-4h4v4z"></path>
+  </svg>
+);
+const CloseIcon = () => (
+  <svg viewBox="0 0 24 24" width="20" height="20" className="fill-[#8696a0]">
+    <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"></path>
+  </svg>
+);
 
 const OPENING_LINES = [
   "Ei sócio! Xira aí! Tenho aqui uma cena que até te saltam as vistas! Um iPhone 15 Pro Max, caído do camião... quer dizer, novinho em folha! É máquina de guerra, tá-se a ber? 800 paus e é teu.",
@@ -74,7 +84,11 @@ const QUICK_REPLIES = [
   "Sou do Porto carago!",
   "Vou chamar a bófia",
   "Trocas por um Nokia?",
-  "Tenho família na Areosa"
+  "Tenho família na Areosa",
+  "És muito caro, esquece",
+  "Tenho o dinheiro na mão",
+  "Qual é o mínimo?",
+  "Parece falso..."
 ];
 
 const getRandomLine = (lines: string[]) => lines[Math.floor(Math.random() * lines.length)];
@@ -109,6 +123,7 @@ export default function App() {
   const [speechError, setSpeechError] = useState<string | null>(null);
   const [showMenu, setShowMenu] = useState(false);
   const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
+  const [showQuickReplies, setShowQuickReplies] = useState(false);
   
   const [stats, setStats] = useState<GameStatistics>(loadStats);
 
@@ -153,7 +168,7 @@ export default function App() {
           scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
     }, 100);
-  }, [gameState.messages, isLoading, gameState.storyOptions, isGeneratingVideo]);
+  }, [gameState.messages, isLoading, gameState.storyOptions, isGeneratingVideo, showQuickReplies]);
 
   useEffect(() => {
       const generateEndingVisual = async () => {
@@ -182,7 +197,6 @@ export default function App() {
       generateEndingVisual();
   }, [gameState.status, gameState.mode, gameState.imageSize]);
 
-  // Funções de Áudio (mantidas mas simplificadas)
   const initAudio = () => {
     if (!audioContextRef.current) {
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
@@ -235,6 +249,9 @@ export default function App() {
   const handleNegotiationMessage = async (text: string) => {
     if (!text.trim() || isLoading) return;
     
+    // Fechar menu de respostas rápidas se aberto
+    setShowQuickReplies(false);
+
     // Feedback de envio
     triggerHaptic(10); 
 
@@ -252,10 +269,9 @@ export default function App() {
       // Feedback de resposta
       playMessageSound();
       
-      // Vibração baseada na mudança de paciência (Paciência desce = Vibração Forte)
-      if (response.patienceChange < -10) triggerHaptic([50, 50, 100]); // Zézé irritado
-      else if (response.gameStatus === GameStatus.WON) triggerHaptic([100, 50, 100, 50, 200]); // Vitória!
-      else triggerHaptic(20); // Normal
+      if (response.patienceChange < -10) triggerHaptic([50, 50, 100]);
+      else if (response.gameStatus === GameStatus.WON) triggerHaptic([100, 50, 100, 50, 200]);
+      else triggerHaptic(20);
 
       const newPatience = Math.max(0, Math.min(100, gameState.patience + response.patienceChange));
       
@@ -271,9 +287,7 @@ export default function App() {
         messages: [...prev.messages, zezeMsg]
       }));
 
-      // Stats Update
       if (response.gameStatus !== GameStatus.PLAYING) {
-         console.log('🎮 JOGO TERMINOU! Status:', response.gameStatus);
          const result: GameResult = {
              outcome: response.gameStatus as any,
              finalPrice: response.newPrice,
@@ -409,7 +423,6 @@ export default function App() {
                   {gameState.messages.map((msg, idx) => (
                     <div key={msg.id} className={idx === gameState.messages.length - 1 ? 'animate-slide-in-left' : ''}>
                       <ChatMessage message={msg} />
-                      {/* Typing indicator simulator */}
                       {isLoading && idx === gameState.messages.length - 1 && (
                          <div className="ml-2 mt-1 mb-2 inline-flex bg-[#202c33] rounded-xl px-3 py-2 items-center gap-1 border border-[#2a3942]/40 rounded-tl-none animate-fade-in shadow-sm">
                             <span className="w-1.5 h-1.5 bg-[#8696a0] rounded-full animate-bounce"></span>
@@ -434,19 +447,49 @@ export default function App() {
             ) : (
                 <div className="bg-gradient-to-t from-[#202c33] to-[#1a2326] p-2 md:p-3 pb-[max(0.5rem,env(safe-area-inset-bottom))] flex flex-col gap-0 shrink-0 z-20 relative shadow-2xl border-t border-[#2a3942]/40">
                     
-                    {/* [NOVO] Sugestões de Resposta Rápida (Chips) */}
+                    {/* MENU DE RESPOSTAS RÁPIDAS - VERSÃO EXPANDÍVEL */}
                     {gameState.status === GameStatus.PLAYING && !isLoading && (
-                        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2 px-1 mb-1">
-                            {QUICK_REPLIES.map((reply, i) => (
+                        <>
+                            {/* Scroll Horizontal (Visível por defeito) */}
+                            <div className={`flex gap-2 overflow-x-auto no-scrollbar pb-2 px-1 mb-1 items-center ${showQuickReplies ? 'opacity-0 h-0 pointer-events-none' : 'opacity-100'}`}>
                                 <button 
-                                    key={i}
-                                    onClick={() => handleNegotiationMessage(reply)}
-                                    className="whitespace-nowrap bg-[#2a3942] hover:bg-[#374248] text-[#e9edef] text-xs px-3 py-1.5 rounded-full border border-[#8696a0]/30 transition-colors active:scale-95 flex-shrink-0"
+                                    onClick={() => setShowQuickReplies(true)}
+                                    className="bg-[#202c33] hover:bg-[#374248] text-[#8696a0] p-1.5 rounded-full border border-[#8696a0]/30 transition-colors flex-shrink-0"
                                 >
-                                    {reply}
+                                    <GridIcon />
                                 </button>
-                            ))}
-                        </div>
+                                {QUICK_REPLIES.slice(0, 5).map((reply, i) => (
+                                    <button 
+                                        key={i}
+                                        onClick={() => handleNegotiationMessage(reply)}
+                                        className="whitespace-nowrap bg-[#2a3942] hover:bg-[#374248] text-[#e9edef] text-xs px-3 py-1.5 rounded-full border border-[#8696a0]/30 transition-colors active:scale-95 flex-shrink-0"
+                                    >
+                                        {reply}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* Menu Completo (Aparece quando clica no botão Grid) */}
+                            {showQuickReplies && (
+                                <div className="absolute bottom-[100%] left-0 right-0 bg-[#1f2c34] p-3 border-t border-[#2a3942] shadow-[0_-4px_10px_rgba(0,0,0,0.3)] animate-slide-in-left rounded-t-2xl z-30">
+                                    <div className="flex justify-between items-center mb-3 px-1">
+                                        <span className="text-xs text-[#8696a0] font-bold uppercase tracking-wider">Respostas Rápidas</span>
+                                        <button onClick={() => setShowQuickReplies(false)} className="p-1 hover:bg-[#374248] rounded-full text-[#8696a0]"><CloseIcon /></button>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2 justify-center max-h-[200px] overflow-y-auto pb-2">
+                                        {QUICK_REPLIES.map((reply, i) => (
+                                            <button 
+                                                key={i}
+                                                onClick={() => handleNegotiationMessage(reply)}
+                                                className="bg-[#2a3942] hover:bg-[#374248] text-[#e9edef] text-sm px-4 py-2 rounded-full border border-[#8696a0]/30 transition-colors active:scale-95 flex-grow text-center"
+                                            >
+                                                {reply}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </>
                     )}
 
                     {speechError && (
