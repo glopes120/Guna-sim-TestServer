@@ -98,6 +98,13 @@ body {
   50% { box-shadow: 0 0 0 8px rgba(0, 168, 132, 0); }
 }
 
+/* Ripple effect (Para gravação de áudio) */
+@keyframes ripple {
+  0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.4); } /* Vermelho base */
+  70% { box-shadow: 0 0 0 15px rgba(220, 38, 38, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+}
+
 /* Slide In do lado esquerdo */
 @keyframes slide-in-left {
   from { opacity: 0; transform: translateX(-30px); }
@@ -141,6 +148,7 @@ body {
 .animate-shake { animation: shake-anim 0.5s infinite; }
 .animate-price { animation: price-flash 0.6s cubic-bezier(0.34, 1.56, 0.64, 1); }
 .animate-pulse-glow { animation: pulse-glow 2s infinite; }
+.animate-ripple { animation: ripple 1.5s infinite; }
 .animate-fade-in { animation: fade-in 0.4s ease-out forwards; }
 .animate-slide-in-left { animation: slide-in-left 0.5s ease-out forwards; }
 .animate-slide-in-right { animation: slide-in-right 0.5s ease-out forwards; }
@@ -210,4 +218,19 @@ body {
 .backdrop-blur-subtle {
   backdrop-filter: blur(8px);
   background-color: rgba(32, 44, 51, 0.95);
+}
+
+/* Safe area support para notch */
+@supports (padding: max(0px)) {
+  body {
+    padding-top: max(0px, env(safe-area-inset-top));
+    padding-right: max(0px, env(safe-area-inset-right));
+    padding-bottom: max(0px, env(safe-area-inset-bottom));
+    padding-left: max(0px, env(safe-area-inset-left));
+  }
+}
+
+/* Prevent zoom on iOS */
+input, button, select, textarea {
+  font-size: 16px !important;
 }
