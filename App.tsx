@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { sendGunaMessage, generateStoryTurn } from './services/geminiService';
-import { GameState, GameStatus, Message, GameStatistics, GameResult, ImageSize } from './types';
+import { GameState, GameStatus, Message, GameStatistics, GameResult, ImageSize, Achievement } from './types';
 import ChatMessage from './components/ChatMessage';
 import PatienceMeter from './components/PatienceMeter';
 import ZezeAvatar from './components/ZezeAvatar';
@@ -116,6 +116,7 @@ export default function App() {
   const [inMainMenu, setInMainMenu] = useState(true);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isTyping, setIsTyping] = useState(false); // NOVO: Estado para "A escrever..."
   const [isAudioEnabled, setIsAudioEnabled] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [isPriceAnimating, setIsPriceAnimating] = useState(false);
@@ -142,7 +143,8 @@ export default function App() {
     ],
     storyOptions: [],
     isStoryLoading: false,
-    imageSize: '1K'
+    imageSize: '1K',
+    isTyping: false
   }));
 
   // --- SOM ---
@@ -162,38 +164,59 @@ export default function App() {
     }
   };
 
+  // --- ACHIEVEMENTS CHECKER ---
+  const checkAchievements = (finalState: GameState, result: GameResult) => {
+    const newStats = { ...stats };
+    let unlockedAny = false;
+
+    // Garante que existe array de achievements
+    if (!newStats.achievements) newStats.achievements = [];
+
+    newStats.achievements = newStats.achievements.map(ach => {
+      if (ach.unlockedAt) return ach; // Já desbloqueado
+
+      let unlocked = false;
+      // Lógica de desbloqueio baseada no ID do achievement
+      if (ach.id === 'shark' && result.outcome === 'won' && result.finalPrice < 200) unlocked = true;
+      if (ach.id === 'diplomat' && result.outcome === 'won' && finalState.patience > 80) unlocked = true;
+      if (ach.id === 'survivor' && finalState.turnCount >= 20) unlocked = true;
+      if (ach.id === 'rich' && result.outcome === 'scammed' && result.finalPrice > 1000) unlocked = true;
+      if (ach.id === 'insulter' && finalState.patience === 0) unlocked = true;
+
+      if (unlocked) {
+        unlockedAny = true;
+        triggerHaptic([100, 50, 100, 50, 200]); // Vibração especial de conquista
+        return { ...ach, unlockedAt: Date.now() };
+      }
+      return ach;
+    });
+
+    if (unlockedAny) {
+      setStats(newStats);
+      saveStats(newStats);
+      // Aqui podíamos adicionar um toast notification no futuro
+      console.log("🏆 Achievement Unlocked!");
+    }
+  };
+
   useEffect(() => {
     setTimeout(() => {
         if (scrollRef.current) {
           scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
     }, 100);
-  }, [gameState.messages, isLoading, gameState.storyOptions, isGeneratingVideo, showQuickReplies]);
+  }, [gameState.messages, isLoading, isTyping, gameState.storyOptions, isGeneratingVideo, showQuickReplies]);
 
+  // Efeito para final de jogo (Imagem Final)
   useEffect(() => {
       const generateEndingVisual = async () => {
           if (gameState.status !== GameStatus.PLAYING && gameState.mode === 'negotiation') {
               const prompt = getEndingImagePrompt(gameState.status);
               if (prompt) {
-                  const msgId = `ending-${Date.now()}`;
-                  setGameState(prev => ({
-                      ...prev,
-                      messages: [...prev.messages, { id: msgId, sender: 'system', text: "A gerar final..." }]
-                  }));
-                  
-                  // Simulação de delay para final
-                  setTimeout(() => {
-                    setGameState(prev => ({
-                        ...prev,
-                        messages: prev.messages.map(m => 
-                          m.id === msgId ? { ...m, text: "FIM DE JOGO" } : m
-                        )
-                      }));
-                  }, 1000);
+                  // Numa versão futura, poderíamos gerar a imagem final aqui também
               }
           }
       };
-      
       generateEndingVisual();
   }, [gameState.status, gameState.mode, gameState.imageSize]);
 
@@ -247,7 +270,7 @@ export default function App() {
   };
 
   const handleNegotiationMessage = async (text: string) => {
-    if (!text.trim() || isLoading) return;
+    if (!text.trim() || isLoading || isTyping) return;
     
     // Fechar menu de respostas rápidas se aberto
     setShowQuickReplies(false);
@@ -261,55 +284,87 @@ export default function App() {
     const userMsg: Message = { id: Date.now().toString(), sender: 'user', text: text };
     setGameState(prev => ({ ...prev, messages: [...prev.messages, userMsg] }));
     setInput('');
-    setIsLoading(true);
+    setIsLoading(true); // Entra em modo "A Pensar"
 
     try {
       const response = await sendGunaMessage(gameState, text);
-      
-      // Feedback de resposta
-      playMessageSound();
-      
-      if (response.patienceChange < -10) triggerHaptic([50, 50, 100]);
-      else if (response.gameStatus === GameStatus.WON) triggerHaptic([100, 50, 100, 50, 200]);
-      else triggerHaptic(20);
+      setIsLoading(false); // Fim do pensamento
+      setIsTyping(true);   // Início do "A Escrever..."
 
-      const newPatience = Math.max(0, Math.min(100, gameState.patience + response.patienceChange));
-      
-      const zezeMsgId = (Date.now() + 1).toString();
-      const zezeMsg: Message = { id: zezeMsgId, sender: 'zeze', text: response.text };
+      // 1. CÁLCULO DO ATRASO DE ESCRITA (UX Polish)
+      // Base de 800ms + 30ms por caractere (máximo de 4 segundos) para simular escrita real
+      const typingDelay = Math.min(4000, 800 + (response.text.length * 30));
 
-      setGameState(prev => ({
-        ...prev,
-        patience: newPatience,
-        currentPrice: response.newPrice,
-        status: response.gameStatus,
-        turnCount: prev.turnCount + 1,
-        messages: [...prev.messages, zezeMsg]
-      }));
+      setTimeout(() => {
+        // Feedback de resposta
+        playMessageSound();
+        
+        if (response.patienceChange < -10) triggerHaptic([50, 50, 100]);
+        else if (response.gameStatus === GameStatus.WON) triggerHaptic([100, 50, 100, 50, 200]);
+        else triggerHaptic(20);
 
-      if (response.gameStatus !== GameStatus.PLAYING) {
-         const result: GameResult = {
-             outcome: response.gameStatus as any,
-             finalPrice: response.newPrice,
-             timestamp: Date.now()
-         };
-         const newStats = { ...stats };
-         newStats.gamesPlayed++;
-         newStats.totalTurns += gameState.turnCount + 1;
-         newStats.recentResults = [result, ...newStats.recentResults].slice(0, 5);
-         if (response.gameStatus === GameStatus.WON) {
-             newStats.wins++;
-             if (!newStats.bestDeal || response.newPrice < newStats.bestDeal) newStats.bestDeal = response.newPrice;
-         } else { newStats.losses++; }
-         if (response.newPrice < newStats.lowestPriceSeen) newStats.lowestPriceSeen = response.newPrice;
-         setStats(newStats);
-         saveStats(newStats);
-      }
+        // 2. GERAÇÃO DE IMAGEM REALISTA (Visual Integration)
+        let generatedImageUrl = undefined;
+        if (response.imagePrompt) {
+            // Usamos pollinations.ai (grátis, sem API key)
+            const encodedPrompt = encodeURIComponent(response.imagePrompt + ", realistic, 8k, cinematic lighting, porto city background, raw style");
+            generatedImageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=800&height=600&nologo=true&seed=${Math.floor(Math.random() * 1000)}`;
+        }
+
+        const newPatience = Math.max(0, Math.min(100, gameState.patience + response.patienceChange));
+        
+        const zezeMsgId = (Date.now() + 1).toString();
+        const zezeMsg: Message = { 
+            id: zezeMsgId, 
+            sender: 'zeze', 
+            text: response.text,
+            imageUrl: generatedImageUrl // Anexa a imagem gerada se existir
+        };
+
+        const newState = {
+          ...gameState,
+          patience: newPatience,
+          currentPrice: response.newPrice,
+          status: response.gameStatus,
+          turnCount: gameState.turnCount + 1,
+          messages: [...gameState.messages, userMsg, zezeMsg], // Garante a ordem correta
+          isTyping: false
+        };
+
+        setGameState(newState);
+        setIsTyping(false);
+
+        if (response.gameStatus !== GameStatus.PLAYING) {
+           const result: GameResult = {
+               outcome: response.gameStatus as any,
+               finalPrice: response.newPrice,
+               timestamp: Date.now()
+           };
+           
+           // Atualizar Stats
+           const newStats = { ...stats };
+           newStats.gamesPlayed++;
+           newStats.totalTurns += newState.turnCount;
+           newStats.recentResults = [result, ...newStats.recentResults].slice(0, 5);
+           
+           if (response.gameStatus === GameStatus.WON) {
+               newStats.wins++;
+               if (!newStats.bestDeal || response.newPrice < newStats.bestDeal) newStats.bestDeal = response.newPrice;
+           } else { newStats.losses++; }
+           if (response.newPrice < newStats.lowestPriceSeen) newStats.lowestPriceSeen = response.newPrice;
+           
+           // 3. CHECK ACHIEVEMENTS
+           setStats(newStats); 
+           saveStats(newStats);
+           checkAchievements(newState, result);
+        }
+
+      }, typingDelay); // Executa toda a lógica após o delay
 
     } catch (e) {
       console.error(e);
-    } finally {
       setIsLoading(false);
+      setIsTyping(false);
     }
   };
 
@@ -319,7 +374,7 @@ export default function App() {
 
   const startStoryMode = async () => {
     setInMainMenu(false);
-    setGameState(prev => ({ ...prev, mode: 'story', patience: 100, currentPrice: 0, status: GameStatus.PLAYING, turnCount: 0, messages: [], storyOptions: [], isStoryLoading: true }));
+    setGameState(prev => ({ ...prev, mode: 'story', patience: 100, currentPrice: 0, status: GameStatus.PLAYING, turnCount: 0, messages: [], storyOptions: [], isStoryLoading: true, isTyping: false }));
     setShowMenu(false);
 
     try {
@@ -341,17 +396,22 @@ export default function App() {
 
     try {
         const storyTurn = await generateStoryTurn(history, choice);
-        playMessageSound();
-        const msgId = (Date.now() + 1).toString();
-        const msg: Message = { id: msgId, sender: 'zeze', text: storyTurn.narrative };
-        const newStatus = storyTurn.gameOver ? GameStatus.WON : GameStatus.PLAYING; 
-        setGameState(prev => ({ ...prev, messages: [...prev.messages, msg], storyOptions: storyTurn.options, status: newStatus, isStoryLoading: false }));
+        
+        // Simular pequeno delay na história também
+        setTimeout(() => {
+            playMessageSound();
+            const msgId = (Date.now() + 1).toString();
+            const msg: Message = { id: msgId, sender: 'zeze', text: storyTurn.narrative };
+            const newStatus = storyTurn.gameOver ? GameStatus.WON : GameStatus.PLAYING; 
+            setGameState(prev => ({ ...prev, messages: [...prev.messages, msg], storyOptions: storyTurn.options, status: newStatus, isStoryLoading: false }));
+        }, 1000);
+        
     } catch (e) { setGameState(prev => ({ ...prev, isStoryLoading: false })); }
   };
 
   const startNegotiationGame = () => {
     setInMainMenu(false);
-    setGameState({ mode: 'negotiation', patience: 50, currentPrice: 800, status: GameStatus.PLAYING, turnCount: 0, messages: [{ id: Date.now().toString(), sender: 'zeze', text: getRandomLine(OPENING_LINES) }], storyOptions: [], isStoryLoading: false, imageSize: gameState.imageSize });
+    setGameState({ mode: 'negotiation', patience: 50, currentPrice: 800, status: GameStatus.PLAYING, turnCount: 0, messages: [{ id: Date.now().toString(), sender: 'zeze', text: getRandomLine(OPENING_LINES) }], storyOptions: [], isStoryLoading: false, imageSize: gameState.imageSize, isTyping: false });
     playMessageSound();
     setShowMenu(false);
   };
@@ -376,7 +436,7 @@ export default function App() {
         <div className="hidden md:block absolute inset-0 rounded-[28px] pointer-events-none bg-gradient-to-b from-[#00a884]/10 via-transparent to-transparent opacity-0 hover:opacity-100 transition-opacity duration-500"></div>
         
         {inMainMenu ? (
-          <MainMenu onStartNegotiation={startNegotiationGame} onStartStory={startStoryMode} onOpenStats={() => setShowStats(true)} />
+          <MainMenu onStartNegotiation={startNegotiationGame} onStartStory={startStoryMode} onOpenStats={() => setShowStats(true)} stats={stats} />
         ) : (
           <>
             {showMenu && (
@@ -396,11 +456,13 @@ export default function App() {
                 <button onClick={handleBackToMenu} className="p-2 hover:bg-[#2a3942]/60 rounded-full transition-all duration-200 flex-shrink-0"><BackArrowIcon /></button>
                 <div className="flex items-center gap-1.5 md:gap-2 cursor-pointer hover:bg-[#2a3942]/40 p-1 md:p-1.5 rounded-lg transition-all duration-200 min-w-0 flex-1 md:flex-none" onClick={() => setShowMenu(!showMenu)}>
                   <div className="w-10 md:w-11 h-10 md:h-11 rounded-full overflow-hidden flex-shrink-0 border-2 border-[#00a884]/60 bg-gradient-to-br from-slate-700 to-black shadow-lg shadow-[#00a884]/20">
-                    <ZezeAvatar patience={gameState.mode === 'story' ? 100 : gameState.patience} isThinking={isLoading || gameState.isStoryLoading} />
+                    <ZezeAvatar patience={gameState.mode === 'story' ? 100 : gameState.patience} isThinking={isLoading || gameState.isStoryLoading || isTyping} />
                   </div>
                   <div className="flex flex-col justify-center min-w-0 flex-1 md:flex-none">
                     <div className="text-[#e9edef] font-bold text-[13px] md:text-[15px] leading-tight flex items-center gap-1 truncate">Zézé {gameState.mode === 'story' && <span className="text-[#00a884] text-[8px] md:text-[10px] font-black bg-[#00a884]/20 px-1.5 py-0.5 rounded-full border border-[#00a884]/40 flex-shrink-0">RPG</span>}</div>
-                    <div className="text-[#8696a0] text-[11px] md:text-[12px] truncate font-medium">{isLoading || gameState.isStoryLoading ? "✍️ a escrever..." : (isGeneratingVideo ? "🎬 a processar..." : "🟢 Online")}</div>
+                    <div className="text-[#8696a0] text-[11px] md:text-[12px] truncate font-medium">
+                      {isLoading ? "🧠 a pensar..." : (isTyping ? "✍️ a escrever..." : "🟢 Online")}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -423,16 +485,18 @@ export default function App() {
                   {gameState.messages.map((msg, idx) => (
                     <div key={msg.id} className={idx === gameState.messages.length - 1 ? 'animate-slide-in-left' : ''}>
                       <ChatMessage message={msg} />
-                      {isLoading && idx === gameState.messages.length - 1 && (
-                         <div className="ml-2 mt-1 mb-2 inline-flex bg-[#202c33] rounded-xl px-3 py-2 items-center gap-1 border border-[#2a3942]/40 rounded-tl-none animate-fade-in shadow-sm">
-                            <span className="w-1.5 h-1.5 bg-[#8696a0] rounded-full animate-bounce"></span>
-                            <span className="w-1.5 h-1.5 bg-[#8696a0] rounded-full animate-bounce delay-100"></span>
-                            <span className="w-1.5 h-1.5 bg-[#8696a0] rounded-full animate-bounce delay-200"></span>
-                         </div>
-                      )}
                     </div>
                   ))}
                   
+                  {/* Indicador de escrita (Typing Bubble) */}
+                  {(isLoading || isTyping) && (
+                     <div className="ml-2 mt-1 mb-2 inline-flex bg-[#202c33] rounded-xl px-4 py-3 items-center gap-1.5 border border-[#2a3942]/40 rounded-tl-none animate-fade-in shadow-sm w-fit">
+                        <span className="w-2 h-2 bg-[#8696a0] rounded-full animate-bounce"></span>
+                        <span className="w-2 h-2 bg-[#8696a0] rounded-full animate-bounce delay-100"></span>
+                        <span className="w-2 h-2 bg-[#8696a0] rounded-full animate-bounce delay-200"></span>
+                     </div>
+                  )}
+
                   {gameState.mode === 'negotiation' && gameState.status !== GameStatus.PLAYING && (
                       <div className="flex justify-center mt-6 pt-4 animate-bounce-subtle">
                           <button onClick={restartNegotiation} className="bg-gradient-to-r from-[#00a884] to-[#008f6f] text-white px-6 md:px-8 py-2.5 md:py-3 rounded-full border-2 border-[#00d9a3] hover:shadow-[0_8px_20px_rgba(0,168,132,0.4)] font-black uppercase tracking-wider transition-all active:scale-95 shadow-lg text-sm md:text-base">🎮 JOGAR NOVAMENTE</button>
@@ -448,7 +512,7 @@ export default function App() {
                 <div className="bg-gradient-to-t from-[#202c33] to-[#1a2326] p-2 md:p-3 pb-[max(0.5rem,env(safe-area-inset-bottom))] flex flex-col gap-0 shrink-0 z-20 relative shadow-2xl border-t border-[#2a3942]/40">
                     
                     {/* MENU DE RESPOSTAS RÁPIDAS - VERSÃO EXPANDÍVEL */}
-                    {gameState.status === GameStatus.PLAYING && !isLoading && (
+                    {gameState.status === GameStatus.PLAYING && !isLoading && !isTyping && (
                         <>
                             {/* Scroll Horizontal (Visível por defeito) */}
                             <div className={`flex gap-2 overflow-x-auto no-scrollbar pb-2 px-1 mb-1 items-center ${showQuickReplies ? 'opacity-0 h-0 pointer-events-none' : 'opacity-100'}`}>
@@ -504,7 +568,7 @@ export default function App() {
                                 value={input}
                                 onChange={(e) => setInput(e.target.value)}
                                 onKeyDown={(e) => e.key === 'Enter' && handleMainButtonClick()}
-                                disabled={gameState.status !== GameStatus.PLAYING || isLoading}
+                                disabled={gameState.status !== GameStatus.PLAYING || isLoading || isTyping}
                                 placeholder={isListening ? "🎤 A ouvir..." : (gameState.status === GameStatus.PLAYING ? "Mensagem" : "Bloqueado")}
                                 className={`bg-transparent text-[#e9edef] placeholder-[#8696a0] text-[14px] md:text-[15px] flex-1 outline-none w-full font-medium ${isListening ? 'animate-pulse text-[#00a884]' : ''}`}
                             />
@@ -516,7 +580,15 @@ export default function App() {
                             <button onClick={() => handleNegotiationMessage(`ACEITO O NEGÓCIO POR ${gameState.currentPrice} EUROS!`)} className="w-10 md:w-11 h-10 md:h-11 rounded-full flex items-center justify-center shadow-lg bg-gradient-to-r from-[#008f6f] to-[#006b52] hover:from-[#00a884] hover:to-[#008f6f] border-2 border-[#00d9a3]/50 hover:border-[#00d9a3] flex-shrink-0 transition-all active:scale-90 md:hover-lift touch-manipulation"><HandshakeIcon /></button>
                         )}
 
-                        <button onClick={handleMainButtonClick} disabled={isLoading || gameState.status !== GameStatus.PLAYING} className={`w-10 md:w-11 h-10 md:h-11 rounded-full flex items-center justify-center shadow-lg transition-all flex-shrink-0 active:scale-90 touch-manipulation border-2 ${isListening ? 'bg-red-600/90 border-red-500 animate-pulse shadow-lg shadow-red-600/40' : 'bg-gradient-to-br from-[#00a884] to-[#008f6f] hover:from-[#00d9a3] hover:to-[#00a884] border-[#00d9a3]/50 hover:border-[#00d9a3] md:hover:shadow-lg md:hover:shadow-[#00a884]/40'}`}>
+                        <button 
+                          onClick={handleMainButtonClick} 
+                          disabled={isLoading || isTyping || gameState.status !== GameStatus.PLAYING} 
+                          className={`w-10 md:w-11 h-10 md:h-11 rounded-full flex items-center justify-center shadow-lg transition-all flex-shrink-0 active:scale-90 touch-manipulation border-2 ${
+                            isListening 
+                              ? 'bg-red-600/90 border-red-500 animate-ripple shadow-lg shadow-red-600/40' 
+                              : 'bg-gradient-to-br from-[#00a884] to-[#008f6f] hover:from-[#00d9a3] hover:to-[#00a884] border-[#00d9a3]/50 hover:border-[#00d9a3] md:hover:shadow-lg md:hover:shadow-[#00a884]/40'
+                          }`}
+                        >
                             {isListening ? <MicIcon /> : (input.trim() ? <SendIcon /> : <MicIcon />)}
                         </button>
                     </div>
