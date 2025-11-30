@@ -7,7 +7,6 @@ import ZezeAvatar from './components/ZezeAvatar';
 import StatsModal from './components/StatsModal';
 import StoryControls from './components/StoryControls';
 import MainMenu from './components/MainMenu';
-// audioUtils functions were unused in this file and removed from imports
 import { loadStats, saveStats, clearStats } from './utils/storageUtils';
 
 // Web Speech API Type Definition
@@ -18,7 +17,7 @@ declare global {
   }
 }
 
-// Icons (Kept same as before)
+// Icons
 const SendIcon = () => (
   <svg viewBox="0 0 24 24" width="24" height="24" className="fill-[#8696a0]">
     <path d="M1.101 21.757L23.8 12.028 1.101 2.3l.011 7.912 13.623 1.816-13.623 1.817-.011 7.912z"></path>
@@ -69,7 +68,6 @@ const OPENING_LINES = [
 const getRandomLine = (lines: string[]) => lines[Math.floor(Math.random() * lines.length)];
 
 const getEndingImagePrompt = (status: GameStatus): string | null => {
-  // Provide simple prompts for each possible game ending; return null when no image should be generated.
   switch (status) {
     case GameStatus.WON:
       return "Uma imagem cinematográfica de celebração: pessoa feliz segurando um iPhone 15 Pro Max, iluminação dramática, realista, alta resolução";
@@ -89,9 +87,7 @@ export default function App() {
   const audioContextRef = useRef<AudioContext | null>(null);
   const recognitionRef = useRef<any>(null);
 
-  // Screen State: 'menu' | 'game'
   const [inMainMenu, setInMainMenu] = useState(true);
-
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isAudioEnabled, setIsAudioEnabled] = useState(false);
@@ -122,37 +118,34 @@ export default function App() {
     imageSize: '1K'
   }));
 
+  // [MODIFICAÇÃO 1] Scroll com delay para dar tempo ao teclado de abrir
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
+    setTimeout(() => {
+        if (scrollRef.current) {
+          scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        }
+    }, 100);
   }, [gameState.messages, isLoading, gameState.storyOptions, isGeneratingVideo]);
 
-  // Handle Game Endings - Trigger Image Generation
   useEffect(() => {
       const generateEndingVisual = async () => {
           if (gameState.status !== GameStatus.PLAYING && gameState.mode === 'negotiation') {
               const prompt = getEndingImagePrompt(gameState.status);
               if (prompt) {
                   const msgId = `ending-${Date.now()}`;
-                  // Add placeholder message for image
                   setGameState(prev => ({
                       ...prev,
                       messages: [...prev.messages, { id: msgId, sender: 'system', text: "A gerar final..." }]
                   }));
                   
                   try {
-                        // Image generation disabled - free tier quota exhausted for gemini-3-pro-image
                         console.log('📸 Imagem final desativada (quota esgotada)');
-                        // const imageUrl = await generateZezeImage(prompt, gameState.imageSize);
-                        // if (imageUrl) {
                         setGameState(prev => ({
                           ...prev,
                           messages: prev.messages.map(m => 
                             m.id === msgId ? { ...m, text: "FIM DE JOGO" } : m
                           )
                         }));
-                        // }
                   } catch (e) {
                       console.error("Ending image failed", e);
                   }
@@ -163,8 +156,6 @@ export default function App() {
       generateEndingVisual();
   }, [gameState.status, gameState.mode, gameState.imageSize]);
 
-
-  // Audio & Speech Logic
   const initAudio = () => {
     if (!audioContextRef.current) {
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
@@ -222,20 +213,15 @@ export default function App() {
     }
   };
 
-  // Helper to process optional images in background
   const processImagePrompt = async (messageId: string, imagePrompt: string | undefined, currentSize: ImageSize) => {
     if (!imagePrompt) return;
-    
-    // Image generation disabled - free tier quota exhausted for gemini-3-pro-image
     console.log('📸 Geração de imagens desativada (quota esgotada)');
     return;
   };
 
-  // ----- NEGOTIATION LOGIC -----
   const handleNegotiationMessage = async (text: string) => {
     if (!text.trim() || isLoading) return;
     
-    // Stop listening if active
     if (isListening) { try { recognitionRef.current.stop(); } catch(e){} }
     if (isAudioEnabled) initAudio();
 
@@ -260,13 +246,10 @@ export default function App() {
         messages: [...prev.messages, zezeMsg]
       }));
 
-      // Trigger background image generation if prompted
       processImagePrompt(zezeMsgId, response.imagePrompt, gameState.imageSize);
 
-      // Stats Logic (Simplified for brevity)
       if (response.gameStatus !== GameStatus.PLAYING) {
          console.log('🎮 JOGO TERMINOU! Status:', response.gameStatus);
-         // Update stats logic here...
          const result: GameResult = {
              outcome: response.gameStatus as any,
              finalPrice: response.newPrice,
@@ -292,13 +275,6 @@ export default function App() {
          saveStats(newStats);
       }
 
-      // Audio generation disabled - using text-to-speech removed for performance
-      // if (isAudioEnabled) {
-      //   getZezeAudio(response.text).then(audio => {
-      //      if(audio && audioContextRef.current) playAudioData(audio, audioContextRef.current, 1.2);
-      //   });
-      // }
-
     } catch (e) {
       console.error(e);
     } finally {
@@ -306,62 +282,17 @@ export default function App() {
     }
   };
 
-  // ----- VEO VIDEO LOGIC DISABLED FOR PERFORMANCE -----
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     console.log('📹 Video uploads disabled - Veo video generation removed');
     return;
-    /*
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    // Reset input
-    event.target.value = '';
-
-    setIsGeneratingVideo(true);
-    const userMsg: Message = { id: Date.now().toString(), sender: 'user', text: "Enviou um vídeo (A processar...)" };
-    setGameState(prev => ({ ...prev, messages: [...prev.messages, userMsg] }));
-
-    try {
-        // Convert to base64
-        const reader = new FileReader();
-        reader.onloadend = async () => {
-            const base64String = (reader.result as string).split(',')[1];
-            const mimeType = file.type;
-
-            const videoUrl = await generateVeoVideo(base64String, mimeType);
-            
-            if (videoUrl) {
-                setGameState(prev => ({
-                    ...prev,
-                    messages: prev.messages.map(m => 
-                        m.id === userMsg.id ? { ...m, text: "Olha para esta cena!", videoUrl } : m
-                    )
-                }));
-            } else {
-                 setGameState(prev => ({
-                    ...prev,
-                    messages: prev.messages.map(m => 
-                        m.id === userMsg.id ? { ...m, text: "O vídeo falhou... a net tá lenta." } : m
-                    )
-                }));
-            }
-            setIsGeneratingVideo(false);
-        };
-        reader.readAsDataURL(file);
-    } catch (e) {
-        console.error("Video upload failed", e);
-        setIsGeneratingVideo(false);
-    }
-    */
   };
 
-  // ----- STORY MODE LOGIC -----
   const startStoryMode = async () => {
     setInMainMenu(false);
     setGameState(prev => ({
       ...prev,
       mode: 'story',
-      patience: 100, // Not relevant in story
+      patience: 100, 
       currentPrice: 0,
       status: GameStatus.PLAYING,
       turnCount: 0,
@@ -394,12 +325,11 @@ export default function App() {
   const handleStoryChoice = async (choice: string) => {
     setGameState(prev => ({
         ...prev,
-        storyOptions: [], // Clear options
+        storyOptions: [], 
         isStoryLoading: true,
         messages: [...prev.messages, { id: Date.now().toString(), sender: 'user', text: choice }]
     }));
 
-    // Build simple history string from last 3 turns
     const history = gameState.messages.slice(-3).map(m => `${m.sender}: ${m.text}`).join('\n');
 
     try {
@@ -407,7 +337,6 @@ export default function App() {
         const msgId = (Date.now() + 1).toString();
         const msg: Message = { id: msgId, sender: 'zeze', text: storyTurn.narrative };
         
-        // Handle Game Over in Story
         const newStatus = storyTurn.gameOver ? GameStatus.WON : GameStatus.PLAYING; 
         
         setGameState(prev => ({
@@ -420,13 +349,6 @@ export default function App() {
 
         processImagePrompt(msgId, storyTurn.imagePrompt, gameState.imageSize);
 
-        // Audio generation disabled for performance
-        // if (isAudioEnabled) {
-        //      getZezeAudio(storyTurn.narrative).then(audio => {
-        //        if(audio && audioContextRef.current) playAudioData(audio, audioContextRef.current, 1.2);
-        //     });
-        // }
-
     } catch (e) {
         setGameState(prev => ({ ...prev, isStoryLoading: false }));
     }
@@ -434,7 +356,6 @@ export default function App() {
 
   const startNegotiationGame = () => {
     setInMainMenu(false);
-    // Reset state for new negotiation
     setGameState({
       mode: 'negotiation',
       patience: 50,
@@ -444,7 +365,7 @@ export default function App() {
       messages: [{ id: Date.now().toString(), sender: 'zeze', text: getRandomLine(OPENING_LINES) }],
       storyOptions: [],
       isStoryLoading: false,
-      imageSize: gameState.imageSize // Keep setting
+      imageSize: gameState.imageSize 
     });
     setShowMenu(false);
   };
@@ -471,18 +392,15 @@ export default function App() {
     }
   };
 
-  // ----- RENDER -----
   return (
-    <div className="flex justify-center items-center h-screen w-screen bg-gradient-to-br from-[#000000] via-[#0b141a] to-[#000000] p-0 md:p-4 lg:p-6 font-sans fixed inset-0">
+    // [MODIFICAÇÃO 2] Altura Dinâmica (100dvh) para mobile
+    <div className="flex justify-center items-center h-[100dvh] w-screen bg-gradient-to-br from-[#000000] via-[#0b141a] to-[#000000] p-0 md:p-4 lg:p-6 font-sans fixed inset-0 supports-[height:100svh]:h-[100svh]">
       <StatsModal stats={stats} isOpen={showStats} onClose={() => setShowStats(false)} onReset={() => setStats(clearStats())} />
 
-      {/* Main container - Mobile optimized */}
       <div className="w-full h-full md:w-full md:h-[90vh] lg:max-w-[500px] lg:max-h-[850px] md:rounded-[28px] bg-[#0b141a] shadow-2xl flex flex-col overflow-hidden relative border-0 md:border md:border-[#2a3942]/30 md:hover:border-[#00a884]/20 md:transition-all md:duration-500">
         
-        {/* Glow effect on edges (desktop only) */}
         <div className="hidden md:block absolute inset-0 rounded-[28px] pointer-events-none bg-gradient-to-b from-[#00a884]/10 via-transparent to-transparent opacity-0 hover:opacity-100 transition-opacity duration-500"></div>
         
-        {/* MAIN MENU RENDER */}
         {inMainMenu ? (
           <MainMenu 
             onStartNegotiation={startNegotiationGame} 
@@ -490,9 +408,7 @@ export default function App() {
             onOpenStats={() => setShowStats(true)} 
           />
         ) : (
-          /* GAME INTERFACE RENDER */
           <>
-            {/* Dropdown Menu */}
             {showMenu && (
                 <div className="absolute top-14 right-2 md:right-4 bg-gradient-to-br from-[#202c33] to-[#1a2326] rounded-xl shadow-2xl z-50 border border-[#2a3942]/60 py-2 min-w-[220px] md:min-w-[240px] animate-slide-in-right backdrop-blur-subtle max-h-[60vh] overflow-y-auto">
                     <button onClick={handleBackToMenu} className="w-full text-left px-4 py-3 hover:bg-[#00a884]/10 text-[#e9edef] flex items-center gap-3 transition-colors group text-sm md:text-base">
@@ -524,7 +440,6 @@ export default function App() {
                 </div>
             )}
 
-            {/* Header - Mobile optimized */}
             <div className="px-2 md:px-3 py-2 md:py-2.5 bg-gradient-to-r from-[#202c33] to-[#1a2326] flex justify-between items-center z-20 shrink-0 shadow-md border-b border-[#2a3942]/40">
               <div className="flex items-center gap-1.5 md:gap-2 min-w-0">
                 <button onClick={handleBackToMenu} className="p-2 hover:bg-[#2a3942]/60 rounded-full transition-all duration-200 flex-shrink-0">
@@ -551,7 +466,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Negotiation Info Bar (Only Negotiation Mode) */}
             {gameState.mode === 'negotiation' && (
                 <div className="bg-gradient-to-r from-[#182229]/80 to-[#0f1a20]/80 px-3 md:px-4 py-2 flex justify-center border-b border-[#00a884]/20 z-10 backdrop-blur-sm">
                 <span className={`text-[11px] md:text-xs font-black text-[#00a884] uppercase flex items-center gap-1.5 md:gap-2 tracking-wider ${isPriceAnimating ? 'animate-price' : ''}`}>
@@ -560,7 +474,6 @@ export default function App() {
                 </div>
             )}
 
-            {/* Chat Area */}
             <div className="relative flex-1 bg-[#0b141a] overflow-hidden w-full">
                 <div className="absolute inset-0 wa-bg pointer-events-none opacity-40"></div>
                 <div ref={scrollRef} className="relative h-full overflow-y-auto p-3 md:p-4 space-y-2">
@@ -571,7 +484,6 @@ export default function App() {
                     </div>
                   ))}
                   
-                  {/* Negotiation End Cards */}
                   {gameState.mode === 'negotiation' && gameState.status !== GameStatus.PLAYING && (
                       <div className="flex justify-center mt-6 pt-4 animate-bounce-subtle">
                           <button onClick={restartNegotiation} className="bg-gradient-to-r from-[#00a884] to-[#008f6f] text-white px-6 md:px-8 py-2.5 md:py-3 rounded-full border-2 border-[#00d9a3] hover:shadow-[0_8px_20px_rgba(0,168,132,0.4)] font-black uppercase tracking-wider transition-all active:scale-95 shadow-lg text-sm md:text-base">
@@ -584,7 +496,6 @@ export default function App() {
                 </div>
             </div>
 
-            {/* Input Area Switcher */}
             {gameState.mode === 'story' ? (
                 <StoryControls 
                     options={gameState.storyOptions} 
@@ -594,7 +505,8 @@ export default function App() {
                     onRestart={startStoryMode}
                 />
             ) : (
-                <div className="bg-gradient-to-t from-[#202c33] to-[#1a2326] p-2 md:p-3 flex items-end gap-1.5 md:gap-2 shrink-0 z-20 relative shadow-2xl border-t border-[#2a3942]/40">
+                // [MODIFICAÇÃO 3] Padding Bottom Dinâmico para Safe Area
+                <div className="bg-gradient-to-t from-[#202c33] to-[#1a2326] p-2 md:p-3 pb-[max(0.5rem,env(safe-area-inset-bottom))] flex items-end gap-1.5 md:gap-2 shrink-0 z-20 relative shadow-2xl border-t border-[#2a3942]/40">
                     {speechError && (
                         <div className="absolute -top-16 left-1/2 transform -translate-x-1/2 bg-red-600/95 text-white text-xs font-bold px-3 md:px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 animate-bounce z-50 whitespace-nowrap border border-red-500/50">
                             ⚠️ {speechError}
@@ -612,7 +524,6 @@ export default function App() {
                             placeholder={isListening ? "🎤 A ouvir..." : (gameState.status === GameStatus.PLAYING ? "Mensagem" : "Bloqueado")}
                             className={`bg-transparent text-[#e9edef] placeholder-[#8696a0] text-[14px] md:text-[15px] flex-1 outline-none w-full font-medium ${isListening ? 'animate-pulse text-[#00a884]' : ''}`}
                         />
-                        {/* Hidden File Input for Video Generation */}
                         <input 
                           type="file" 
                           accept="image/*" 
