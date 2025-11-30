@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+  <head>
+    <meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content" />    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Guna Simulator" />
+    <meta name="theme-color" content="#00a884" />
+    <meta name="description" content="Guna Simulator - Business à Moda do Porto" />
+    
+    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><rect fill='%2300a884' width='180' height='180'/><text x='50%' y='50%' font-size='80' fill='white' text-anchor='middle' dominant-baseline='central' font-weight='bold'>GS</text></svg>" />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%2300a884' width='100' height='100'/><text x='50' y='65' font-size='60' fill='white' text-anchor='middle' font-weight='bold'>💰</text></svg>" />
+    <link rel="manifest" href="/manifest.json" />
+    
+    <title>Guna Simulator</title>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&display=swap');
+      
+      * {
+        -webkit-tap-highlight-color: transparent;
+        -webkit-touch-callout: none;
+      }
+      
+      html, body {
+        width: 100%;
+        height: 100%;
+        padding: 0;
+        margin: 0;
+        font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        background-color: #111b21;
+        color: #e9edef;
+        overflow: hidden;
+        -webkit-user-select: none;
+        user-select: none;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+
+      body {
+        position: fixed;
+        width: 100%;
+        height: 100%;
+      }
+
+      #root {
+        width: 100%;
+        height: 100%;
+      }
+
+      /* WhatsApp Background Pattern */
+      .wa-bg {
+        background-color: #0b141a;
+        background-image: 
+          linear-gradient(135deg, rgba(0, 168, 132, 0.02) 0%, rgba(0, 168, 132, 0.01) 100%),
+          url("https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png");
+        background-repeat: repeat;
+        background-blend-mode: overlay;
+        opacity: 0.95;
+      }
+
+      /* Scrollbar */
+      ::-webkit-scrollbar {
+        width: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: rgba(0, 168, 132, 0.3);
+        border-radius: 4px;
+      }
+
+      /* Animations */
+      @keyframes blink-anim {
+        0%, 100% { transform: scaleY(1); }
+        50% { transform: scaleY(0.1); }
+      }
+      
+      @keyframes float-anim {
+        0%, 100% { transform: translateY(0px); }
+        25% { transform: translateY(-4px); }
+        50% { transform: translateY(-2px); }
+        75% { transform: translateY(-4px); }
+      }
+
+      @keyframes pulse-joy {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+      }
+
+      @keyframes shake-anim {
+        0% { transform: translate(1px, 1px) rotate(0deg); }
+        10% { transform: translate(-1px, -2px) rotate(-1deg); }
+        20% { transform: translate(-3px, 0px) rotate(1deg); }
+        30% { transform: translate(3px, 2px) rotate(0deg); }
+        40% { transform: translate(1px, -1px) rotate(1deg); }
+        50% { transform: translate(-1px, 2px) rotate(-1deg); }
+        60% { transform: translate(-3px, 1px) rotate(0deg); }
+        70% { transform: translate(3px, 1px) rotate(-1deg); }
+        80% { transform: translate(-1px, -1px) rotate(1deg); }
+        90% { transform: translate(1px, 2px) rotate(0deg); }
+        100% { transform: translate(1px, -2px) rotate(-1deg); }
+      }
+
+      @keyframes price-flash {
+        0% { transform: scale(1); color: #e9edef; }
+        50% { transform: scale(1.15); color: #00ff88; text-shadow: 0 0 10px rgba(0, 255, 136, 0.6); }
+        100% { transform: scale(1); color: #e9edef; }
+      }
+
+      @keyframes pulse-glow {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(0, 168, 132, 0.7); }
+        50% { box-shadow: 0 0 0 8px rgba(0, 168, 132, 0); }
+      }
+
+      @keyframes slide-in-left {
+        from { opacity: 0; transform: translateX(-30px); }
+        to { opacity: 1; transform: translateX(0); }
+      }
+
+      @keyframes slide-in-right {
+        from { opacity: 0; transform: translateX(30px); }
+        to { opacity: 1; transform: translateX(0); }
+      }
+
+      @keyframes fade-in {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+
+      @keyframes bounce-subtle {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-6px); }
+      }
+
+      @keyframes twinkle {
+        0%, 100% { opacity: 0.3; }
+        50% { opacity: 1; }
+      }
+
+      @keyframes spin-smooth {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+
+      .animate-blink { animation: blink-anim 0.2s ease-in-out; }
+      .animate-float { animation: float-anim 4s ease-in-out infinite; }
+      .animate-pulse-joy { animation: pulse-joy 2s ease-in-out infinite; }
+      .animate-shake { animation: shake-anim 0.5s infinite; }
+      .animate-price { animation: price-flash 0.6s cubic-bezier(0.34, 1.56, 0.64, 1); }
+      .animate-pulse-glow { animation: pulse-glow 2s infinite; }
+      .animate-fade-in { animation: fade-in 0.4s ease-out forwards; }
+      .animate-slide-in-left { animation: slide-in-left 0.5s ease-out forwards; }
+      .animate-slide-in-right { animation: slide-in-right 0.5s ease-out forwards; }
+      .animate-bounce-subtle { animation: bounce-subtle 2s ease-in-out infinite; }
+      .animate-twinkle { animation: twinkle 1.5s ease-in-out infinite; }
+      .animate-spin-smooth { animation: spin-smooth 2s linear infinite; }
+
+      /* Gradient animado */
+      .bg-gradient-shift {
+        background: linear-gradient(-45deg, #00a884, #008f6f, #006b52, #00a884);
+        background-size: 300% 300%;
+        animation: gradient-shift 15s ease infinite;
+      }
+
+      @keyframes gradient-shift {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+      }
+
+      /* Efeito de brilho no texto */
+      .text-glow {
+        text-shadow: 0 0 10px rgba(0, 168, 132, 0.5), 0 0 20px rgba(0, 168, 132, 0.3);
+      }
+
+      /* Efeito hover melhorado */
+      .hover-lift {
+        transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+      }
+
+      .hover-lift:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 12px 20px rgba(0, 168, 132, 0.2);
+      }
+
+      /* Hide scrollbar for horizontal lists */
+      .no-scrollbar::-webkit-scrollbar {
+        display: none;
+      }
+      .no-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+      }
+
+      /* Divisor estilizado */
+      .divider-glow {
+        background: linear-gradient(90deg, transparent, rgba(0, 168, 132, 0.3), transparent);
+        height: 1px;
+      }
+
+      /* Backdrop blur para menus */
+      .backdrop-blur-subtle {
+        backdrop-filter: blur(8px);
+        background-color: rgba(32, 44, 51, 0.95);
+      }
+
+      /* Safe area support para notch */
+      @supports (padding: max(0px)) {
+        body {
+          padding-top: max(0px, env(safe-area-inset-top));
+          padding-right: max(0px, env(safe-area-inset-right));
+          padding-bottom: max(0px, env(safe-area-inset-bottom));
+          padding-left: max(0px, env(safe-area-inset-left));
+        }
+      }
+
+      /* Prevent zoom on iOS */
+      input, button, select, textarea {
+        font-size: 16px !important;
+      }
+    </style>
+  </head>
+  <body class="overflow-hidden">
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>

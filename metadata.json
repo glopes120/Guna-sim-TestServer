@@ -1,0 +1,7 @@
+{
+  "name": "Guna Simulator",
+  "description": "Business à Moda do Porto. Tenta negociar com o Zézé sem ficar sem a carteira.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}

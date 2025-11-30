@@ -1,0 +1,213 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* --- Estilos Personalizados --- */
+
+body {
+  font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background-color: #111b21;
+  color: #e9edef;
+  overflow: hidden; /* Evita scroll na página toda */
+  letter-spacing: 0.3px;
+}
+
+/* Padrão de Fundo estilo WhatsApp */
+.wa-bg {
+  background-color: #0b141a;
+  background-image: 
+    linear-gradient(135deg, rgba(0, 168, 132, 0.02) 0%, rgba(0, 168, 132, 0.01) 100%),
+    url("https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png");
+  background-repeat: repeat;
+  background-blend-mode: overlay;
+  opacity: 0.95;
+}
+
+/* --- Scrollbar Personalizado (Estilo Dark Mode) --- */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 168, 132, 0.3);
+  border-radius: 4px;
+  transition: background 0.3s ease;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 168, 132, 0.5);
+}
+
+/* Esconder Scrollbar (para listas horizontais) */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+/* --- Animações --- */
+
+/* Piscar (Blink) */
+@keyframes blink-anim {
+  0%, 100% { transform: scaleY(1); }
+  50% { transform: scaleY(0.1); }
+}
+
+/* Flutuar (Idle) - Suave e contínuo */
+@keyframes float-anim {
+  0%, 100% { transform: translateY(0px); }
+  25% { transform: translateY(-4px); }
+  50% { transform: translateY(-2px); }
+  75% { transform: translateY(-4px); }
+}
+
+/* Pulsação de alegria */
+@keyframes pulse-joy {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+/* Tremer (Raiva/Medo) */
+@keyframes shake-anim {
+  0% { transform: translate(1px, 1px) rotate(0deg); }
+  10% { transform: translate(-1px, -2px) rotate(-1deg); }
+  20% { transform: translate(-3px, 0px) rotate(1deg); }
+  30% { transform: translate(3px, 2px) rotate(0deg); }
+  40% { transform: translate(1px, -1px) rotate(1deg); }
+  50% { transform: translate(-1px, 2px) rotate(-1deg); }
+  60% { transform: translate(-3px, 1px) rotate(0deg); }
+  70% { transform: translate(3px, 1px) rotate(-1deg); }
+  80% { transform: translate(-1px, -1px) rotate(1deg); }
+  90% { transform: translate(1px, 2px) rotate(0deg); }
+  100% { transform: translate(1px, -2px) rotate(-1deg); }
+}
+
+/* Flash de Preço (Negócio fechado/Mudança) */
+@keyframes price-flash {
+  0% { transform: scale(1); color: #e9edef; }
+  50% { transform: scale(1.15); color: #00ff88; text-shadow: 0 0 10px rgba(0, 255, 136, 0.6); }
+  100% { transform: scale(1); color: #e9edef; }
+}
+
+/* Pulse Glow - Verde vibrante */
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(0, 168, 132, 0.7); }
+  50% { box-shadow: 0 0 0 8px rgba(0, 168, 132, 0); }
+}
+
+/* Slide In do lado esquerdo */
+@keyframes slide-in-left {
+  from { opacity: 0; transform: translateX(-30px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* Slide In do lado direito */
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(30px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* Fade In (Entrada suave) */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Bounce subtle */
+@keyframes bounce-subtle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+/* Twinkle - Piscar tipo estrela */
+@keyframes twinkle {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
+}
+
+/* Rotate 360 */
+@keyframes spin-smooth {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Classes utilitárias para as animações */
+.animate-blink { animation: blink-anim 0.2s ease-in-out; }
+.animate-float { animation: float-anim 4s ease-in-out infinite; }
+.animate-pulse-joy { animation: pulse-joy 2s ease-in-out infinite; }
+.animate-shake { animation: shake-anim 0.5s infinite; }
+.animate-price { animation: price-flash 0.6s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.animate-pulse-glow { animation: pulse-glow 2s infinite; }
+.animate-fade-in { animation: fade-in 0.4s ease-out forwards; }
+.animate-slide-in-left { animation: slide-in-left 0.5s ease-out forwards; }
+.animate-slide-in-right { animation: slide-in-right 0.5s ease-out forwards; }
+.animate-bounce-subtle { animation: bounce-subtle 2s ease-in-out infinite; }
+.animate-twinkle { animation: twinkle 1.5s ease-in-out infinite; }
+.animate-spin-smooth { animation: spin-smooth 2s linear infinite; }
+
+/* Gradient animado */
+.bg-gradient-shift {
+  background: linear-gradient(-45deg, #00a884, #008f6f, #006b52, #00a884);
+  background-size: 300% 300%;
+  animation: gradient-shift 15s ease infinite;
+}
+
+@keyframes gradient-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Efeito de brilho no texto */
+.text-glow {
+  text-shadow: 0 0 10px rgba(0, 168, 132, 0.5), 0 0 20px rgba(0, 168, 132, 0.3);
+}
+
+/* Efeito hover melhorado */
+.hover-lift {
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.hover-lift:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 20px rgba(0, 168, 132, 0.2);
+}
+
+/* Botão com efeito ripple */
+.btn-ripple {
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-ripple::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.5);
+  transform: translate(-50%, -50%);
+  transition: width 0.6s, height 0.6s;
+}
+
+.btn-ripple:active::after {
+  width: 300px;
+  height: 300px;
+}
+
+/* Divisor estilizado */
+.divider-glow {
+  background: linear-gradient(90deg, transparent, rgba(0, 168, 132, 0.3), transparent);
+  height: 1px;
+}
+
+/* Backdrop blur para menus */
+.backdrop-blur-subtle {
+  backdrop-filter: blur(8px);
+  background-color: rgba(32, 44, 51, 0.95);
+}
