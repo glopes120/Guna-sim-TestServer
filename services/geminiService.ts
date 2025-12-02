@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type, HarmCategory, HarmBlockThreshold, SafetySetting } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 import { GameState, GeminiResponse, GameStatus, StoryResponse, ImageSize } from "../types";
 
 // Initialize Gemini Client
@@ -10,12 +10,14 @@ if (!apiKey) {
 
 const ai = new GoogleGenAI({ apiKey: apiKey });
 
-// --- CONFIGURAÇÃO DE SEGURANÇA (CORRIGIDA COM TIPAGEM) ---
-const SAFETY_SETTINGS: SafetySetting[] = [
-  { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-  { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
-  { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
-  { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE }
+// --- CONFIGURAÇÃO DE SEGURANÇA (CORRIGIDA MANUALMENTE) ---
+// Definimos isto como 'any' para evitar conflitos de tipagem estrita do TS com a SDK
+// mas mantemos a estrutura correta que a API espera.
+const SAFETY_SETTINGS: any[] = [
+  { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
+  { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
+  { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
+  { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' }
 ];
 
 // --- INSTRUÇÕES DE NEGOCIAÇÃO (A TUA VERSÃO DETALHADA) ---
@@ -146,6 +148,7 @@ export const sendGunaMessage = async (
   try {
     const model = 'gemini-1.5-flash';
     
+    // 1. Detetores de Intenção
     const isAggressive = /insulta|filho|crl|merda|burro|aldrabão|ladrão|cabrão|puta|corno|boi/i.test(userMessage);
     const mentions_police = /polícia|bófia|112|gnr|psp|guardas|xibo/i.test(userMessage);
     const hasOffer = /\d+/.test(userMessage);
@@ -178,7 +181,7 @@ RESPONDE APENAS JSON.
       config: {
         systemInstruction: NEGOTIATION_SYSTEM_INSTRUCTION,
         responseMimeType: "application/json",
-        safetySettings: SAFETY_SETTINGS,
+        safetySettings: SAFETY_SETTINGS, // Agora aceita 'any' e não reclama
         responseSchema: {
           type: Type.OBJECT,
           properties: {
@@ -240,7 +243,7 @@ export const generateStoryTurn = async (
         // CORREÇÃO: Usa a instrução de história, não de negociação
         systemInstruction: STORY_SYSTEM_INSTRUCTION, 
         responseMimeType: "application/json",
-        safetySettings: SAFETY_SETTINGS,
+        safetySettings: SAFETY_SETTINGS, // Correção aqui também
         responseSchema: {
           type: Type.OBJECT,
           properties: {
