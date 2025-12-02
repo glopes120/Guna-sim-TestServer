@@ -10,8 +10,7 @@ if (!apiKey) {
 
 const ai = new GoogleGenAI({ apiKey: apiKey });
 
-// --- CONFIGURAÇÃO DE SEGURANÇA (CORRIGIDA) ---
-// Usamos 'any' para evitar conflitos de tipos, mas mantemos a configuração que o Zézé precisa
+// --- CONFIGURAÇÃO DE SEGURANÇA ---
 const SAFETY_SETTINGS: any[] = [
   { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
   { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
@@ -145,9 +144,8 @@ export const sendGunaMessage = async (
   userMessage: string
 ): Promise<GeminiResponse> => {
   try {
-    // CORREÇÃO: Usar a versão específica 'gemini-1.5-flash-001' que é mais estável
-    // Se esta falhar, tenta 'gemini-1.5-flash-latest' ou 'gemini-2.0-flash-exp'
-    const model = 'gemini-1.5-flash-001'; 
+    // ⚠️ MUDANÇA IMPORTANTE: Modelo atualizado para versão mais recente
+    const model = 'gemini-2.0-flash'; 
     
     // 1. Detetores de Intenção (Para ajudar a IA)
     const isAggressive = /insulta|filho|crl|merda|burro|aldrabão|ladrão|cabrão|puta|corno|boi/i.test(userMessage);
@@ -203,7 +201,7 @@ RESPONDE APENAS JSON.
     if (!jsonText) throw new Error("Empty response from AI");
     
     const parsed = JSON.parse(jsonText) as GeminiResponse;
-    console.log('✅ Zézé (Tough Mode):', parsed.text);
+    console.log('✅ Zézé (Gemini 2.0):', parsed.text);
 
     // Lógica de Segurança
     if (parsed.newPrice < 0) parsed.newPrice = 0;
@@ -231,7 +229,7 @@ export const generateStoryTurn = async (
   userChoice: string
 ): Promise<StoryResponse> => {
   try {
-    const model = 'gemini-1.5-flash-001'; // Mesmo modelo aqui
+    const model = 'gemini-2.0-flash'; // ⚠️ MUDANÇA IMPORTANTE AQUI TAMBÉM
     const isStart = history.length === 0;
     const prompt = isStart 
       ? "INÍCIO RPG: O jogador encontra o Zézé. Cria uma situação perigosa ou estúpida na Areosa."
