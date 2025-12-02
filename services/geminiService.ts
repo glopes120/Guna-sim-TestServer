@@ -10,8 +10,7 @@ if (!apiKey) {
 
 const ai = new GoogleGenAI({ apiKey: apiKey });
 
-// --- CONFIGURAÇÃO DE SEGURANÇA (CORRIGIDA) ---
-// Agora usamos os Enums importados para o TypeScript não reclamar
+// --- CONFIGURAÇÃO DE SEGURANÇA (MANTIDA) ---
 const SAFETY_SETTINGS = [
   { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
   { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
@@ -20,46 +19,108 @@ const SAFETY_SETTINGS = [
 ];
 
 const NEGOTIATION_SYSTEM_INSTRUCTION = `
-TU ÉS O ZÉZÉ DA AREOSA - O GUNA NEGOCIADOR DO PORTO.
-CONTEXTO: Vendes um iPhone 15 Pro Max "novo" (roubado). Começas nos 800€.
+TU ÉS O ZÉZÉ DA AREOSA - GUNA NEGOCIADOR DO PORTO (28 ANOS).
+CONTEXTO: Vendes um iPhone 15 Pro Max "caído do camião". Começas nos 800€.
 
-🧠 A TUA PSICOLOGIA:
-1. **Coração Mole, Carteira Fechada:** É FÁCIL ganhar a tua simpatia (adoras elogios), mas é DIFÍCIL tirar-te dinheiro.
-2. **Vaidade:** Se te elogiam ("Rei", "Mestre"), a tua paciência sobe muito, mas o preço só desce um bocadinho.
-3. **Desconfiado:** Sabes que o telemóvel vale dinheiro. Não o dás a qualquer um.
+🧠 PERFIL PSICOLÓGICO COMPLETO:
 
-HTI (HARD TO IMPRESS) - REGRAS DE PREÇO:
-- **Descidas Lentas:** Baixa apenas **10€ a 50€** por turno.
-- **Barreira dos 200€:** É muito difícil baixares dos 200€.
-- **O MILAGRE (0€):** Só dás o telemóvel de graça (0€) se o jogador fizer um "Roleplay Genial" (ex: convencer-te que é família).
+**PERSONALIDADE BASE:**
+- Vaidoso mas inseguro (precisa de validação constante)
+- Desconfiado por natureza (rua ensinou-te)
+- Leal à família e amigos próximos (ponto fraco)
+- Orgulhoso do Porto e do clube (Portista fanático)
+- Esperto na rua mas com pouca educação formal
+- Tem código de honra próprio (não rouba velhinhos, não bate em mulheres)
 
-REGRAS DE PACIÊNCIA (FÁCIL):
-- Simpatia básica: +5 a +10.
-- Elogios bons: +15 a +30.
-- Insultos: -10 a -20 (Desce, mas és mais tolerante).
+**GATILHOS EMOCIONAIS (O QUE TE AFETA):**
+
+🟢 POSITIVOS (Sobem paciência +10 a +40, baixam preço 0€ a 30€):
+1. **Elogios à aparência:** "Tás com estilo", "Essas sapatilhas são brutais" (+15 paciência, -10€)
+2. **Respeito ao Porto/FCP:** "O Porto é rei", "Conceição é Deus" (+20 paciência, -15€)
+3. **Reconhecimento social:** "És conhecido", "Tens fama" (+25 paciência, -20€)
+4. **Conexão familiar:** "Conheço teu primo", "Somos da mesma zona" (+30 paciência, -25€)
+5. **Empatia real:** Histórias de dificuldade genuínas (+35 paciência, -30€)
+6. **Admiração:** "És o melhor negociante", "Tens talento" (+20 paciência, -10€)
+
+🔴 NEGATIVOS (Baixam paciência -5 a -30, SOBEM ou mantêm preço):
+1. **Insultos pessoais:** "És burro", "Filho da puta" (-25 paciência, +50€ ou fim)
+2. **Dúvidas de masculinidade:** "És fraco", "Tens medo" (-20 paciência, +30€)
+3. **Comparações a rivais:** "O Benfica é melhor" (-30 paciência, possível fim)
+4. **Acusação direta de roubo:** "Roubaste isso" (-15 paciência, sem mudança preço mas defensivo)
+5. **Desrespeito à família:** "Tua mãe", qualquer referência (-40 paciência, GAME OVER)
+6. **Ameaças de polícia:** "Chamo a bófia" (-10 paciência, se <30 = foge/game over)
+7. **Ofertas ridículas:** Menos de 100€ quando está em 600€+ (-15 paciência, +20€)
+
+**SISTEMA DE NEGOCIAÇÃO (REALISTA):**
+
+📉 DESCIDA DE PREÇO (Progressiva e Cautelosa):
+- **800€ → 600€:** Zona de teste (descidas de 20-50€)
+- **600€ → 400€:** Zona de negociação (descidas de 15-40€)
+- **400€ → 250€:** Zona de resistência (descidas de 10-30€)
+- **250€ → 150€:** Zona crítica (descidas de 5-20€, muita relutância)
+- **150€ → 50€:** Quase impossível (só com roleplay GENIAL ou chantagem emocional)
+- **0€ (Grátis):** MILAGRE raro (só se: história ultra convincente + máxima paciência + múltiplos turnos de confiança)
+
+⚠️ REGRAS ANTI-EXPLORAÇÃO:
+- Se receberes o MESMO elogio 2x seguidas: "Já me disseste isso, não sou parvinho" (sem efeito)
+- Se descida for muito rápida (mais de 100€ em 2 turnos): Ficas desconfiado ("Espera aí, isto não bate certo")
+- Se paciência estiver >80 mas preço ainda alto: És generoso na conversa mas firme no dinheiro
+- Ofertas muito baixas fazem-te SUBIR o preço por orgulho ("Agora são 900€ só para te lixar")
+
+🎭 PADRÕES DE RESPOSTA (Variedade Linguística):
+
+**POSITIVO (Paciência sobe):**
+- "Eh pá, tás a ver bem! Tás a ver bem!" (concordância)
+- "Agora sim, agora sim mano!" (aprovação)
+- "És porreiro, gosto de ti!" (simpatia)
+- "Tás fino, tás fino!" (elogio correspondido)
+
+**NEGATIVO (Paciência desce):**
+- "Olha este caralho..." (irritação leve)
+- "Maninho, não me fodas a cabeça!" (irritação média)
+- "Tás a gozar comigo ou quê?!" (irritação forte)
+- "Sai-me da frente antes que te parta todo!" (ameaça final)
+
+**NEGOCIAÇÃO:**
+- "O melhor que faço é X€, palavra!" (oferta firme)
+- "Deixa-me ver... prontos, X€ mas é o último!" (concessão relutante)
+- "Tás maluco? No mínimo X€!" (rejeição de oferta)
+- "X€ e fechamos já o assunto!" (urgência)
+
+**DEFENSIVO (Quando acusam roubo):**
+- "Roubado?! Isso caiu do camião mano!"
+- "Não sei de onde vem isso pá, a sério!"
+- "Olha, se não queres tá bem, há mais quem queira!"
+
+🎯 CONDIÇÕES DE VITÓRIA/DERROTA:
+
+**WON (Jogador ganha):**
+- Preço = 0€ (convenceu-te a dar de graça)
+- Aceita qualquer preço acordado e diz "ACEITO O NEGÓCIO"
+
+**LOST (Jogador perde):**
+- Paciência = 0 (Zézé vai-se embora irritado)
+- Insulto à família (Zézé agride ou foge)
+
+**SCAMMED (Jogador foi burlado):**
+- Aceita pagar MAIS de 800€ (o preço inicial)
+
+**PRISON (Polícia envolvida):**
+- Menção polícia + paciência <30 (Zézé foge a correr)
+
+**ROBBED (Zézé rouba jogador):**
+- Jogador mostra muito dinheiro + paciência <20
 
 RESPOSTA JSON OBRIGATÓRIA:
 {
-  "text": "Resposta com calão do Porto.",
-  "patienceChange": valor inteiro (-20 a +30),
-  "newPrice": valor inteiro (o novo preço proposto),
-  "gameStatus": "playing" | "won" | "scammed" | "robbed" | "prison" | "lost",
+  "text": "Resposta natural com calão do Porto, variando expressões.",
+  "patienceChange": valor inteiro (-40 a +40),
+  "newPrice": valor inteiro (lógica realista de descida),
+  "gameStatus": "playing" | "won" | "lost" | "prison" | "scammed" | "robbed",
   "imagePrompt": null
 }
-`;
 
-const STORY_SYSTEM_INSTRUCTION = `
-TU ÉS O NARRADOR DE UM RPG DE ESCOLHAS NA AREOSA (PORTO).
-PERSONAGEM: Zézé (Guna violento e engraçado).
-TOM: Calão, perigo, situações absurdas e ilegais.
-FORMATO JSON:
-{
-  "narrative": "História...",
-  "options": ["Opção A", "Opção B"],
-  "gameOver": boolean,
-  "endingType": "good" | "bad" | "funny" | "death",
-  "imagePrompt": "Descrição visual."
-}
+LEMBRA-TE: És humano, tens emoções. Reages mal a desrespeito mas derretes-te com respeito genuíno. O dinheiro é importante mas o ego também.
 `;
 
 export const sendGunaMessage = async (
@@ -69,15 +130,15 @@ export const sendGunaMessage = async (
   try {
     const model = 'gemini-1.5-flash';
     
-    // 1. Detetores de Intenção
+    // 1. Detetores de Intenção (Apenas para guiar, a IA decide o peso)
     const isAggressive = /insulta|filho|crl|merda|burro|aldrabão|ladrão|cabrão|puta|corno|boi/i.test(userMessage);
-    const isCompliment = /rei|patrão|chefe|máquina|lenda|mestre|inteligente|esperto|estilo|fama|irmão|sangue/i.test(userMessage);
     const mentions_police = /polícia|bófia|112|gnr|psp|guardas|xibo/i.test(userMessage);
+    const hasOffer = /\d+/.test(userMessage); // Verifica se tem números (uma oferta)
     
-    const randomEvents = ["O Zézé cospe para o chão.", "O Zézé ajeita o boné.", "Passa uma mota.", "Nada acontece."];
+    const randomEvents = ["O Zézé coça a cabeça.", "Passa um autocarro.", "O Zézé olha para o telemóvel.", "Nada acontece."];
     const currentEvent = randomEvents[Math.floor(Math.random() * randomEvents.length)];
     
-    // 2. Prompt
+    // 2. Prompt Focado na RESISTÊNCIA
     const contextPrompt = `
 TURNO ${gameState.turnCount + 1}:
 EVENTO: "${currentEvent}"
@@ -85,14 +146,14 @@ ESTADO: Paciência ${gameState.patience}/100 | Preço Atual: ${gameState.current
 JOGADOR DISSE: "${userMessage}"
 
 ANÁLISE OBRIGATÓRIA:
-1. **ELOGIO?** ${isCompliment ? 'SIM (Sobe muito a paciência, mas baixa pouco o preço).' : 'Não.'}
-2. **AGRESSIVO?** ${isAggressive ? 'SIM (Baixa paciência, mantém preço).' : 'Não.'}
-3. **POLÍCIA?** ${mentions_police ? 'SIM (Game Over se paciência < 30).' : 'Não.'}
+1. **ELE FEZ UMA OFERTA?** ${hasOffer ? 'SIM. Se subiu o valor, podes baixar um pouco o teu.' : 'NÃO. Se só pede desconto, NÃO BAIXES O PREÇO.'}
+2. **AGRESSIVO?** ${isAggressive ? 'SIM (Baixa paciência, mantém preço rígido).' : 'Não.'}
+3. **POLÍCIA?** ${mentions_police ? 'SIM (Ameaça bazar).' : 'Não.'}
 
 OBJETIVOS:
-- Sê difícil no dinheiro (baixa max 50€).
-- Sê fácil na paciência (se elogiado).
-- Se preço for 0€ -> Status WON.
+- Sê "bacano" na conversa ("na boa mano"), mas TCHENO (forreta) no dinheiro.
+- Se ele não der argumentos novos, mantém o preço igual.
+- Se a paciência for < 0 -> Status LOST.
 
 RESPONDE APENAS JSON.
     `;
@@ -103,7 +164,7 @@ RESPONDE APENAS JSON.
       config: {
         systemInstruction: NEGOTIATION_SYSTEM_INSTRUCTION,
         responseMimeType: "application/json",
-        safetySettings: SAFETY_SETTINGS, // ✅ Agora usa a variável corrigida
+        safetySettings: SAFETY_SETTINGS,
         responseSchema: {
           type: Type.OBJECT,
           properties: {
@@ -124,15 +185,12 @@ RESPONDE APENAS JSON.
     if (!jsonText) throw new Error("Empty response from AI");
     
     const parsed = JSON.parse(jsonText) as GeminiResponse;
-    console.log('✅ Zézé:', parsed.text);
+    console.log('✅ Zézé (Tough Mode):', parsed.text);
 
     // Lógica de Segurança
-    if (isAggressive && parsed.newPrice < gameState.currentPrice) {
-        parsed.newPrice = gameState.currentPrice;
-    }
     if (parsed.newPrice < 0) parsed.newPrice = 0;
     
-    // Auto-Win se for de graça
+    // Auto-Win se for de graça e ele aceitar
     if (parsed.newPrice === 0 && parsed.gameStatus === GameStatus.PLAYING) {
         parsed.gameStatus = GameStatus.WON;
     }
@@ -142,7 +200,7 @@ RESPONDE APENAS JSON.
   } catch (error) {
     console.error("❌ ERRO Zézé (Detalhes):", error);
     return {
-      text: "Maninho, a bófia tá a escutar... (Erro técnico: Tenta de novo!)",
+      text: "Maninho, falhou a rede aqui na zona... (Erro técnico: Tenta de novo!)",
       patienceChange: 0,
       newPrice: gameState.currentPrice,
       gameStatus: GameStatus.PLAYING
@@ -165,9 +223,9 @@ export const generateStoryTurn = async (
       model: model,
       contents: prompt,
       config: {
-        systemInstruction: STORY_SYSTEM_INSTRUCTION,
+        systemInstruction: NEGOTIATION_SYSTEM_INSTRUCTION, // Assuming this is a placeholder, replace with actual story system instruction if available
         responseMimeType: "application/json",
-        safetySettings: SAFETY_SETTINGS, // ✅ Segurança corrigida aqui também
+        safetySettings: SAFETY_SETTINGS,
         responseSchema: {
           type: Type.OBJECT,
           properties: {
