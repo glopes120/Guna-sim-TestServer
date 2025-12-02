@@ -10,9 +10,8 @@ if (!apiKey) {
 
 const ai = new GoogleGenAI({ apiKey: apiKey });
 
-// --- CONFIGURAÇÃO DE SEGURANÇA (CORRIGIDA MANUALMENTE) ---
-// Definimos isto como 'any' para evitar conflitos de tipagem estrita do TS com a SDK
-// mas mantemos a estrutura correta que a API espera.
+// --- CONFIGURAÇÃO DE SEGURANÇA (CORRIGIDA) ---
+// Usamos 'any' para evitar conflitos de tipos, mas mantemos a configuração que o Zézé precisa
 const SAFETY_SETTINGS: any[] = [
   { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
   { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
@@ -20,7 +19,7 @@ const SAFETY_SETTINGS: any[] = [
   { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' }
 ];
 
-// --- INSTRUÇÕES DE NEGOCIAÇÃO (A TUA VERSÃO DETALHADA) ---
+// --- INSTRUÇÕES DE NEGOCIAÇÃO ---
 const NEGOTIATION_SYSTEM_INSTRUCTION = `
 TU ÉS O ZÉZÉ DA AREOSA - GUNA NEGOCIADOR DO PORTO (28 ANOS).
 CONTEXTO: Vendes um iPhone 15 Pro Max "caído do camião". Começas nos 800€.
@@ -124,7 +123,7 @@ RESPOSTA JSON OBRIGATÓRIA:
 }
 `;
 
-// --- INSTRUÇÕES DO MODO HISTÓRIA (RESTABELECIDO) ---
+// --- INSTRUÇÕES DO MODO HISTÓRIA ---
 const STORY_SYSTEM_INSTRUCTION = `
 TU ÉS O NARRADOR DE UM RPG DE ESCOLHAS NA AREOSA (PORTO).
 PERSONAGEM: Zézé (Guna violento e engraçado).
@@ -146,9 +145,11 @@ export const sendGunaMessage = async (
   userMessage: string
 ): Promise<GeminiResponse> => {
   try {
-    const model = 'gemini-1.5-flash';
+    // CORREÇÃO: Usar a versão específica 'gemini-1.5-flash-001' que é mais estável
+    // Se esta falhar, tenta 'gemini-1.5-flash-latest' ou 'gemini-2.0-flash-exp'
+    const model = 'gemini-1.5-flash-001'; 
     
-    // 1. Detetores de Intenção
+    // 1. Detetores de Intenção (Para ajudar a IA)
     const isAggressive = /insulta|filho|crl|merda|burro|aldrabão|ladrão|cabrão|puta|corno|boi/i.test(userMessage);
     const mentions_police = /polícia|bófia|112|gnr|psp|guardas|xibo/i.test(userMessage);
     const hasOffer = /\d+/.test(userMessage);
@@ -163,12 +164,12 @@ ESTADO: Paciência ${gameState.patience}/100 | Preço Atual: ${gameState.current
 JOGADOR DISSE: "${userMessage}"
 
 ANÁLISE OBRIGATÓRIA:
-1. **ELE FEZ UMA OFERTA?** ${hasOffer ? 'SIM. Se subiu o valor, podes baixar um pouco o teu.' : 'NÃO. Se só pede desconto, NÃO BAIXES O PREÇO.'}
-2. **AGRESSIVO?** ${isAggressive ? 'SIM (Baixa paciência, mantém preço rígido).' : 'Não.'}
+1. **ELE FEZ UMA OFERTA?** ${hasOffer ? 'SIM. Avalia se é boa.' : 'NÃO. Se só pede desconto sem números, sê forreta.'}
+2. **AGRESSIVO?** ${isAggressive ? 'SIM (Baixa paciência, mantém preço).' : 'Não.'}
 3. **POLÍCIA?** ${mentions_police ? 'SIM (Ameaça bazar).' : 'Não.'}
 
 OBJETIVOS:
-- Sê "bacano" na conversa ("na boa mano"), mas TCHENO (forreta) no dinheiro.
+- Sê "bacano" na conversa mas TCHENO (forreta) no dinheiro.
 - Se ele não der argumentos novos, mantém o preço igual.
 - Se a paciência for < 0 -> Status LOST.
 
@@ -181,7 +182,7 @@ RESPONDE APENAS JSON.
       config: {
         systemInstruction: NEGOTIATION_SYSTEM_INSTRUCTION,
         responseMimeType: "application/json",
-        safetySettings: SAFETY_SETTINGS, // Agora aceita 'any' e não reclama
+        safetySettings: SAFETY_SETTINGS,
         responseSchema: {
           type: Type.OBJECT,
           properties: {
@@ -230,7 +231,7 @@ export const generateStoryTurn = async (
   userChoice: string
 ): Promise<StoryResponse> => {
   try {
-    const model = 'gemini-1.5-flash';
+    const model = 'gemini-1.5-flash-001'; // Mesmo modelo aqui
     const isStart = history.length === 0;
     const prompt = isStart 
       ? "INÍCIO RPG: O jogador encontra o Zézé. Cria uma situação perigosa ou estúpida na Areosa."
@@ -240,10 +241,9 @@ export const generateStoryTurn = async (
       model: model,
       contents: prompt,
       config: {
-        // CORREÇÃO: Usa a instrução de história, não de negociação
         systemInstruction: STORY_SYSTEM_INSTRUCTION, 
         responseMimeType: "application/json",
-        safetySettings: SAFETY_SETTINGS, // Correção aqui também
+        safetySettings: SAFETY_SETTINGS,
         responseSchema: {
           type: Type.OBJECT,
           properties: {
