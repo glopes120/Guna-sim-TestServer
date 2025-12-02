@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type, HarmCategory, HarmBlockThreshold } from "@google/genai";
+import { GoogleGenAI, Type, HarmCategory, HarmBlockThreshold, SafetySetting } from "@google/genai";
 import { GameState, GeminiResponse, GameStatus, StoryResponse, ImageSize } from "../types";
 
 // Initialize Gemini Client
@@ -10,14 +10,15 @@ if (!apiKey) {
 
 const ai = new GoogleGenAI({ apiKey: apiKey });
 
-// --- CONFIGURAÇÃO DE SEGURANÇA (MANTIDA) ---
-const SAFETY_SETTINGS = [
+// --- CONFIGURAÇÃO DE SEGURANÇA (CORRIGIDA COM TIPAGEM) ---
+const SAFETY_SETTINGS: SafetySetting[] = [
   { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
   { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
   { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
   { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE }
 ];
 
+// --- INSTRUÇÕES DE NEGOCIAÇÃO (A TUA VERSÃO DETALHADA) ---
 const NEGOTIATION_SYSTEM_INSTRUCTION = `
 TU ÉS O ZÉZÉ DA AREOSA - GUNA NEGOCIADOR DO PORTO (28 ANOS).
 CONTEXTO: Vendes um iPhone 15 Pro Max "caído do camião". Começas nos 800€.
@@ -119,15 +120,23 @@ RESPOSTA JSON OBRIGATÓRIA:
   "gameStatus": "playing" | "won" | "lost" | "prison" | "scammed" | "robbed",
   "imagePrompt": null
 }
+`;
 
-EXEMPLOS DE RESPOSTAS POR STATUS:
-- **WON**: "Prontos mano, 250€ e fechamos! Encontramo-nos na Praça da República às 18h. Levo o telemóvel!" OU "Ok, manda por MBWay: 936482517. Depois combino entrega!"
-- **LOST**: "Já fui, não tenho paciência para parvos. *Bloqueado*" OU "Foda-se mano, vai chatear outro! *Bloqueou o teu número*"
-- **PRISON**: "*Zézé apagou esta conta*" OU "*Esta conversa foi apagada pelo utilizador*"
-- **ROBBED**: "Paga aqui que é mais rápido: bit.ly/iphone15 😉" OU "Transfere já para 936XXXXXX! ... *Bloqueado* (Burlou-te!)"
-- **SCAMMED**: "900€? FECHADO! Manda MBWay: 91******0. *Depois de receber* Obrigado parvinho! *Bloqueado*"
+// --- INSTRUÇÕES DO MODO HISTÓRIA (RESTABELECIDO) ---
+const STORY_SYSTEM_INSTRUCTION = `
+TU ÉS O NARRADOR DE UM RPG DE ESCOLHAS NA AREOSA (PORTO).
+PERSONAGEM: Zézé (Guna violento e engraçado).
+TOM: Calão, perigo, situações absurdas e ilegais.
+O Zézé deve insultar o jogador se ele escolher opções "burras" ou de "menino".
 
-LEMBRA-TE: És humano, tens emoções. Reages mal a desrespeito mas derretes-te com respeito genuíno. O dinheiro é importante mas o ego também. TUDO ACONTECE POR WHATSAPP - não há encontros físicos até negócio fechado!
+FORMATO JSON OBRIGATÓRIO:
+{
+  "narrative": "História + Comentário insultuoso do Zézé.",
+  "options": ["Opção A", "Opção B", "Opção C"],
+  "gameOver": boolean,
+  "endingType": "good" | "bad" | "funny" | "death",
+  "imagePrompt": "Descrição visual curta em INGLÊS."
+}
 `;
 
 export const sendGunaMessage = async (
@@ -137,15 +146,13 @@ export const sendGunaMessage = async (
   try {
     const model = 'gemini-1.5-flash';
     
-    // 1. Detetores de Intenção (Apenas para guiar, a IA decide o peso)
     const isAggressive = /insulta|filho|crl|merda|burro|aldrabão|ladrão|cabrão|puta|corno|boi/i.test(userMessage);
     const mentions_police = /polícia|bófia|112|gnr|psp|guardas|xibo/i.test(userMessage);
-    const hasOffer = /\d+/.test(userMessage); // Verifica se tem números (uma oferta)
+    const hasOffer = /\d+/.test(userMessage);
     
     const randomEvents = ["O Zézé coça a cabeça.", "Passa um autocarro.", "O Zézé olha para o telemóvel.", "Nada acontece."];
     const currentEvent = randomEvents[Math.floor(Math.random() * randomEvents.length)];
     
-    // 2. Prompt Focado na RESISTÊNCIA
     const contextPrompt = `
 TURNO ${gameState.turnCount + 1}:
 EVENTO: "${currentEvent}"
@@ -230,7 +237,8 @@ export const generateStoryTurn = async (
       model: model,
       contents: prompt,
       config: {
-        systemInstruction: NEGOTIATION_SYSTEM_INSTRUCTION, // Assuming this is a placeholder, replace with actual story system instruction if available
+        // CORREÇÃO: Usa a instrução de história, não de negociação
+        systemInstruction: STORY_SYSTEM_INSTRUCTION, 
         responseMimeType: "application/json",
         safetySettings: SAFETY_SETTINGS,
         responseSchema: {
