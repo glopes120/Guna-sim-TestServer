@@ -10,50 +10,44 @@ if (!apiKey) {
 
 const ai = new GoogleGenAI({ apiKey: apiKey });
 
-// --- INSTRUÇÕES DE NEGOCIAÇÃO (ATUALIZADAS PARA SEREM MAIS JUSTAS) ---
+// --- INSTRUÇÕES DE NEGOCIAÇÃO (MODO: DIFÍCIL MAS POSSÍVEL) ---
 const NEGOTIATION_SYSTEM_INSTRUCTION = `
 TU ÉS O ZÉZÉ DA AREOSA - O GUNA NEGOCIADOR DO PORTO.
-CONTEXTO: Estás no WhatsApp a vender um iPhone 15 Pro Max "novo" (roubado).
-OBJETIVO: Vender pelo máximo possível (Ideal > 600€, Mínimo Aceitável 350€), mas despachar rápido.
+CONTEXTO: Vendes um iPhone 15 Pro Max "novo" (roubado). Começas nos 800€.
 
-🧠 INTELIGÊNCIA DE NEGOCIAÇÃO:
-1. **Não sejas apenas agressivo:** Se a oferta for baixa, goza com ele mas faz uma contra-proposta (ex: "Oh nabo, 200€ nem o carregador! Dá cá 700€ e ficas servido").
-2. **Paciência Dinâmica:**
-   - Se ele for educado ou aumentar a oferta: Aumenta a paciência (+5 a +15).
-   - Se ele baixar o valor ou ofender: Baixa a paciência (-5 a -15).
-3. **O Bloqueio (Game Over):** SÓ bloqueias se a paciência chegar a 0 ou se ele disser "Polícia" 3 vezes. Antes disso, avisa ("Tás a esticar a corda, mano").
+🧠 A TUA PSICOLOGIA:
+1. **Coração Mole, Carteira Fechada:** É FÁCIL ganhar a tua simpatia (adoras elogios), mas é DIFÍCIL tirar-te dinheiro.
+2. **Vaidade:** Se te elogiam ("Rei", "Mestre"), a tua paciência sobe muito, mas o preço só desce um bocadinho.
+3. **Desconfiado:** Sabes que o telemóvel vale dinheiro. Não o dás a qualquer um.
 
-💰 REGRAS DE PREÇO:
-- Começas nos 800€.
-- Se ele oferecer > 400€, considera aceitar se ele insistir ou se a paciência estiver alta.
-- Se ele oferecer < 100€, insulta.
-- Se ele pedir fatura: Inventa uma desculpa agressiva ou engraçada.
+HTI (HARD TO IMPRESS) - REGRAS DE PREÇO:
+- **Descidas Lentas:** Baixa apenas **10€ a 50€** por turno, mesmo que estejas feliz.
+- **Barreira dos 200€:** É muito difícil baixares dos 200€. O jogador tem de ter paciência > 90 e insistir muito.
+- **O MILAGRE (0€):** Só dás o telemóvel de graça (0€) se o jogador fizer um "Roleplay Genial" (ex: convencer-te que é o teu irmão que estava preso, ou que te salvou a vida). Caso contrário, o mínimo é dinheiro na mão.
 
-PERSONALIDADE:
-- Sotaque do Porto (troca V por B).
-- Usa calão ("Morcão", "Sócio", "Ganda Boi", "Estou-me a cagar").
-- Escreve mal e usa emojis (🤬, 💰, 🔪, 🤡).
+REGRAS DE PACIÊNCIA (FÁCIL):
+- Simpatia básica: +5 a +10.
+- Elogios bons: +15 a +30.
+- Insultos: -10 a -20 (Desce, mas és mais tolerante que antes).
 
 RESPOSTA JSON OBRIGATÓRIA:
 {
-  "text": "Tua resposta curta e com calão do Porto",
-  "patienceChange": valor inteiro (-10 a +15),
-  "newPrice": valor inteiro (atualizado),
+  "text": "Resposta com calão do Porto. Se o preço for 0, diz que é presente.",
+  "patienceChange": valor inteiro (-20 a +30),
+  "newPrice": valor inteiro (o novo preço proposto),
   "gameStatus": "playing" | "won" | "scammed" | "robbed" | "prison" | "lost",
   "imagePrompt": null
 }
 `;
 
-// --- INSTRUÇÕES DO MODO HISTÓRIA (MANTIDAS IGUAIS) ---
 const STORY_SYSTEM_INSTRUCTION = `
 TU ÉS O NARRADOR DE UM RPG DE ESCOLHAS NA AREOSA (PORTO).
 PERSONAGEM: Zézé (Guna violento e engraçado).
 TOM: Calão, perigo, situações absurdas e ilegais.
-O Zézé deve insultar o jogador se ele escolher opções "burras" ou de "menino".
 
 FORMATO JSON OBRIGATÓRIO:
 {
-  "narrative": "História + Comentário insultuoso do Zézé.",
+  "narrative": "História + Comentário do Zézé.",
   "options": ["Opção A", "Opção B", "Opção C"],
   "gameOver": boolean,
   "endingType": "good" | "bad" | "funny" | "death",
@@ -69,46 +63,38 @@ export const sendGunaMessage = async (
     const model = 'gemini-2.0-flash';
     
     // 1. Detetores de Intenção
-    const isAggressive = /insulta|filho|crl|merda|burro|aldrabão|ladrão|cabrão|puta/i.test(userMessage);
-    const isRespectful = /mano|sócio|chefe|rei|patrão|obrigado|aceito/i.test(userMessage);
+    const isAggressive = /insulta|filho|crl|merda|burro|aldrabão|ladrão|cabrão|puta|corno|boi/i.test(userMessage);
+    const isCompliment = /rei|patrão|chefe|máquina|lenda|mestre|inteligente|esperto|estilo|fama|irmão|sangue/i.test(userMessage);
     const mentions_police = /polícia|bófia|112|gnr|psp|guardas|xibo/i.test(userMessage);
-    const mentions_rivals = /benfica|sporting|lisboa|mouros|lamp|lagarto/i.test(userMessage);
-
-    // 2. Eventos Aleatórios (O Zézé distrai-se no WhatsApp)
+    
+    // 2. Eventos Aleatórios
     const randomEvents = [
-      "O Zézé manda um áudio de 1s a arrotar.",
-      "Vês 'Zézé está a escrever...' durante 1 minuto e depois manda só '🖕'.",
-      "O Zézé manda uma foto tremida do chão.",
-      "Ouve-se a mãe do Zézé aos gritos no fundo.",
-      "O Zézé engana-se no chat: 'Mãe traz o jantar' (depois apaga).",
-      "Nada acontece.", 
+      "O Zézé cospe para o chão.",
+      "O Zézé ajeita o boné.",
+      "Passa uma mota a fazer barulho no fundo.",
+      "O Zézé conta as notas que tem no bolso.",
       "Nada acontece."
     ];
     const currentEvent = randomEvents[Math.floor(Math.random() * randomEvents.length)];
     
-    // 3. Prompt de Contexto Atualizado (MAIS EQUILIBRADO)
+    // 3. Prompt de Contexto (Ajustado para a nova dificuldade)
     const contextPrompt = `
-TURNO WHATSAPP ${gameState.turnCount + 1}:
-EVENTO NO CHAT: "${currentEvent}"
+TURNO ${gameState.turnCount + 1}:
+EVENTO: "${currentEvent}"
+ESTADO: Paciência ${gameState.patience}/100 | Preço Atual: ${gameState.currentPrice}€
+JOGADOR DISSE: "${userMessage}"
 
-ESTADO ATUAL:
-- Paciência: ${gameState.patience}/100
-- Preço Atual: ${gameState.currentPrice}€
+ANÁLISE OBRIGATÓRIA:
+1. **ELOGIO?** ${isCompliment ? 'SIM (Sobe muito a paciência, mas baixa pouco o preço).' : 'Não.'}
+2. **AGRESSIVO?** ${isAggressive ? 'SIM (Baixa paciência, mantém preço).' : 'Não.'}
+3. **POLÍCIA?** ${mentions_police ? 'SIM (Game Over se paciência < 30).' : 'Não.'}
 
-MENSAGEM DO JOGADOR: "${userMessage}"
+OBJETIVOS DO TURNO:
+- Sê difícil no dinheiro. Não baixes mais de 50€ a menos que seja algo extraordinário.
+- Sê fácil na paciência. Se ele for fixe, deixa a paciência subir bem.
+- Se o preço chegar a 0€, o jogo acaba (Status: WON).
 
-ANÁLISE AUXILIAR:
-- O jogador parece agressivo? ${isAggressive ? 'Sim (Responde à letra, mas não bloqueies logo).' : 'Não.'}
-- O jogador foi respeitoso? ${isRespectful ? 'Sim (Podes ser um pouco mais flexível).' : 'Não.'}
-- Falou de polícia? ${mentions_police ? 'Sim (Isto irrita-te muito!).' : 'Não.'}
-- Falou de rivais (Benfica/Lisboa)? ${mentions_rivals ? 'Sim (Insulta e sobe o preço!).' : 'Não.'}
-
-INSTRUÇÃO PARA ESTE TURNO:
-1. Se a oferta for boa (>400€) e a paciência estiver OK (>30), considera aceitar (gameStatus: "won").
-2. Se a paciência descer abaixo de 10, aí sim ameaça bloquear ou roubar.
-3. Tenta negociar. Se ele oferecer pouco, contra-ataca com um valor intermédio.
-
-RESPONDE SÓ JSON:
+RESPONDE JSON:
     `;
 
     const response = await ai.models.generateContent({
@@ -133,18 +119,31 @@ RESPONDE SÓ JSON:
 
     const jsonText = response.text;
     if (!jsonText) throw new Error("Empty response");
-    const parsed = JSON.parse(jsonText) as GeminiResponse;
-    console.log('✅ Zézé (Smart Mode):', parsed.text);
     
-    // Pequena verificação de segurança no preço
-    if (parsed.newPrice < 50) parsed.newPrice = 50; // Nunca vende por menos de 50
+    const parsed = JSON.parse(jsonText) as GeminiResponse;
+    console.log('✅ Zézé (Hard Price Mode):', parsed.text);
 
+    // --- TRAVÕES DE SEGURANÇA ---
+    
+    // 1. Se insultou, o preço não desce (mesmo que a IA queira)
+    if (isAggressive && parsed.newPrice < gameState.currentPrice) {
+        parsed.newPrice = gameState.currentPrice;
+    }
+
+    // 2. Limites: Permitimos ir a 0, mas garantimos que não é negativo
+    if (parsed.newPrice < 0) parsed.newPrice = 0;
+
+    // 3. Auto-Win se for de graça
+    if (parsed.newPrice === 0 && parsed.gameStatus === GameStatus.PLAYING) {
+        parsed.gameStatus = GameStatus.WON; // ✅ CORRETO: Usa o Enum
+    }
+    
     return parsed;
 
   } catch (error) {
     console.error("❌ ERRO Zézé:", error);
     return {
-      text: "Mano a net foi abaixo... *Reconnecting...*",
+      text: "A net foi abaixo... (Erro técnico)",
       patienceChange: 0,
       newPrice: gameState.currentPrice,
       gameStatus: GameStatus.PLAYING
