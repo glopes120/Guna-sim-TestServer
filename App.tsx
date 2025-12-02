@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import EmojiPicker, { Theme, EmojiClickData } from 'emoji-picker-react'; //
 import { sendGunaMessage, generateStoryTurn } from './services/geminiService';
 import { GameState, GameStatus, Message, GameStatistics, GameResult, ImageSize, Achievement } from './types';
 import ChatMessage from './components/ChatMessage';
@@ -116,7 +117,7 @@ export default function App() {
   const [inMainMenu, setInMainMenu] = useState(true);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [isTyping, setIsTyping] = useState(false); // NOVO: Estado para "A escrever..."
+  const [isTyping, setIsTyping] = useState(false);
   const [isAudioEnabled, setIsAudioEnabled] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [isPriceAnimating, setIsPriceAnimating] = useState(false);
@@ -125,6 +126,7 @@ export default function App() {
   const [showMenu, setShowMenu] = useState(false);
   const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
   const [showQuickReplies, setShowQuickReplies] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false); // NOVO: Estado para mostrar/esconder o picker
   
   const [stats, setStats] = useState<GameStatistics>(loadStats);
 
@@ -169,14 +171,12 @@ export default function App() {
     const newStats = { ...stats };
     let unlockedAny = false;
 
-    // Garante que existe array de achievements
     if (!newStats.achievements) newStats.achievements = [];
 
     newStats.achievements = newStats.achievements.map(ach => {
-      if (ach.unlockedAt) return ach; // Já desbloqueado
+      if (ach.unlockedAt) return ach;
 
       let unlocked = false;
-      // Lógica de desbloqueio baseada no ID do achievement
       if (ach.id === 'shark' && result.outcome === 'won' && result.finalPrice < 200) unlocked = true;
       if (ach.id === 'diplomat' && result.outcome === 'won' && finalState.patience > 80) unlocked = true;
       if (ach.id === 'survivor' && finalState.turnCount >= 20) unlocked = true;
@@ -185,7 +185,7 @@ export default function App() {
 
       if (unlocked) {
         unlockedAny = true;
-        triggerHaptic([100, 50, 100, 50, 200]); // Vibração especial de conquista
+        triggerHaptic([100, 50, 100, 50, 200]);
         return { ...ach, unlockedAt: Date.now() };
       }
       return ach;
@@ -194,7 +194,6 @@ export default function App() {
     if (unlockedAny) {
       setStats(newStats);
       saveStats(newStats);
-      // Aqui podíamos adicionar um toast notification no futuro
       console.log("🏆 Achievement Unlocked!");
     }
   };
@@ -205,9 +204,8 @@ export default function App() {
           scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
     }, 100);
-  }, [gameState.messages, isLoading, isTyping, gameState.storyOptions, isGeneratingVideo, showQuickReplies]);
+  }, [gameState.messages, isLoading, isTyping, gameState.storyOptions, isGeneratingVideo, showQuickReplies, showEmojiPicker]);
 
-  // Efeito para final de jogo (Imagem Final)
   useEffect(() => {
       const generateEndingVisual = async () => {
           if (gameState.status !== GameStatus.PLAYING && gameState.mode === 'negotiation') {
@@ -272,10 +270,8 @@ export default function App() {
   const handleNegotiationMessage = async (text: string) => {
     if (!text.trim() || isLoading || isTyping) return;
     
-    // Fechar menu de respostas rápidas se aberto
     setShowQuickReplies(false);
-
-    // Feedback de envio
+    setShowEmojiPicker(false); // Fecha o picker ao enviar
     triggerHaptic(10); 
 
     if (isListening) { try { recognitionRef.current.stop(); } catch(e){} }
@@ -284,29 +280,24 @@ export default function App() {
     const userMsg: Message = { id: Date.now().toString(), sender: 'user', text: text };
     setGameState(prev => ({ ...prev, messages: [...prev.messages, userMsg] }));
     setInput('');
-    setIsLoading(true); // Entra em modo "A Pensar"
+    setIsLoading(true);
 
     try {
       const response = await sendGunaMessage(gameState, text);
-      setIsLoading(false); // Fim do pensamento
-      setIsTyping(true);   // Início do "A Escrever..."
+      setIsLoading(false);
+      setIsTyping(true);
 
-      // 1. CÁLCULO DO ATRASO DE ESCRITA (UX Polish)
-      // Base de 800ms + 30ms por caractere (máximo de 4 segundos) para simular escrita real
       const typingDelay = Math.min(4000, 800 + (response.text.length * 30));
 
       setTimeout(() => {
-        // Feedback de resposta
         playMessageSound();
         
         if (response.patienceChange < -10) triggerHaptic([50, 50, 100]);
         else if (response.gameStatus === GameStatus.WON) triggerHaptic([100, 50, 100, 50, 200]);
         else triggerHaptic(20);
 
-        // 2. GERAÇÃO DE IMAGEM REALISTA (Visual Integration)
         let generatedImageUrl = undefined;
         if (response.imagePrompt) {
-            // Usamos pollinations.ai (grátis, sem API key)
             const encodedPrompt = encodeURIComponent(response.imagePrompt + ", realistic, 8k, cinematic lighting, porto city background, raw style");
             generatedImageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=800&height=600&nologo=true&seed=${Math.floor(Math.random() * 1000)}`;
         }
@@ -318,7 +309,7 @@ export default function App() {
             id: zezeMsgId, 
             sender: 'zeze', 
             text: response.text,
-            imageUrl: generatedImageUrl // Anexa a imagem gerada se existir
+            imageUrl: generatedImageUrl
         };
 
         const newState = {
@@ -327,7 +318,7 @@ export default function App() {
           currentPrice: response.newPrice,
           status: response.gameStatus,
           turnCount: gameState.turnCount + 1,
-          messages: [...gameState.messages, userMsg, zezeMsg], // Garante a ordem correta
+          messages: [...gameState.messages, userMsg, zezeMsg],
           isTyping: false
         };
 
@@ -341,7 +332,6 @@ export default function App() {
                timestamp: Date.now()
            };
            
-           // Atualizar Stats
            const newStats = { ...stats };
            newStats.gamesPlayed++;
            newStats.totalTurns += newState.turnCount;
@@ -353,19 +343,25 @@ export default function App() {
            } else { newStats.losses++; }
            if (response.newPrice < newStats.lowestPriceSeen) newStats.lowestPriceSeen = response.newPrice;
            
-           // 3. CHECK ACHIEVEMENTS
            setStats(newStats); 
            saveStats(newStats);
            checkAchievements(newState, result);
         }
 
-      }, typingDelay); // Executa toda a lógica após o delay
+      }, typingDelay);
 
     } catch (e) {
       console.error(e);
       setIsLoading(false);
       setIsTyping(false);
     }
+  };
+
+  // NOVO: Handler para clicar no Emoji
+  const onEmojiClick = (emojiData: EmojiClickData) => {
+    setInput((prev) => prev + emojiData.emoji);
+    // Opcional: Não fechar o picker para permitir selecionar múltiplos
+    // setShowEmojiPicker(false); 
   };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -397,7 +393,6 @@ export default function App() {
     try {
         const storyTurn = await generateStoryTurn(history, choice);
         
-        // Simular pequeno delay na história também
         setTimeout(() => {
             playMessageSound();
             const msgId = (Date.now() + 1).toString();
@@ -488,7 +483,6 @@ export default function App() {
                     </div>
                   ))}
                   
-                  {/* Indicador de escrita (Typing Bubble) */}
                   {(isLoading || isTyping) && (
                      <div className="ml-2 mt-1 mb-2 inline-flex bg-[#202c33] rounded-xl px-4 py-3 items-center gap-1.5 border border-[#2a3942]/40 rounded-tl-none animate-fade-in shadow-sm w-fit">
                         <span className="w-2 h-2 bg-[#8696a0] rounded-full animate-bounce"></span>
@@ -511,10 +505,8 @@ export default function App() {
             ) : (
                 <div className="bg-gradient-to-t from-[#202c33] to-[#1a2326] p-2 md:p-3 pb-[max(0.5rem,env(safe-area-inset-bottom))] flex flex-col gap-0 shrink-0 z-20 relative shadow-2xl border-t border-[#2a3942]/40">
                     
-                    {/* MENU DE RESPOSTAS RÁPIDAS - VERSÃO EXPANDÍVEL */}
                     {gameState.status === GameStatus.PLAYING && !isLoading && !isTyping && (
                         <>
-                            {/* Scroll Horizontal (Visível por defeito) */}
                             <div className={`flex gap-2 overflow-x-auto no-scrollbar pb-2 px-1 mb-1 items-center ${showQuickReplies ? 'opacity-0 h-0 pointer-events-none' : 'opacity-100'}`}>
                                 <button 
                                     onClick={() => setShowQuickReplies(true)}
@@ -533,7 +525,6 @@ export default function App() {
                                 ))}
                             </div>
 
-                            {/* Menu Completo (Aparece quando clica no botão Grid) */}
                             {showQuickReplies && (
                                 <div className="absolute bottom-[100%] left-0 right-0 bg-[#1f2c34] p-3 border-t border-[#2a3942] shadow-[0_-4px_10px_rgba(0,0,0,0.3)] animate-slide-in-left rounded-t-2xl z-30">
                                     <div className="flex justify-between items-center mb-3 px-1">
@@ -560,8 +551,27 @@ export default function App() {
                         <div className="absolute -top-16 left-1/2 transform -translate-x-1/2 bg-red-600/95 text-white text-xs font-bold px-3 md:px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 animate-bounce z-50 whitespace-nowrap border border-red-500/50">⚠️ {speechError}</div>
                     )}
                     <div className="flex items-end gap-1.5 md:gap-2">
-                        <div className="flex-1 bg-gradient-to-r from-[#2a3942]/80 to-[#202c33]/80 rounded-[20px] md:rounded-[24px] px-3 md:px-4 py-2 md:py-2.5 flex items-center gap-1.5 md:gap-2 min-h-[42px] md:min-h-[44px] border border-[#2a3942]/50 backdrop-blur-sm hover:border-[#00a884]/30 transition-colors">
-                            <button className="p-1.5 hover:bg-[#374248]/60 rounded-full transition-colors hidden md:block flex-shrink-0"><SmileyIcon /></button>
+                        <div className="flex-1 bg-gradient-to-r from-[#2a3942]/80 to-[#202c33]/80 rounded-[20px] md:rounded-[24px] px-3 md:px-4 py-2 md:py-2.5 flex items-center gap-1.5 md:gap-2 min-h-[42px] md:min-h-[44px] border border-[#2a3942]/50 backdrop-blur-sm hover:border-[#00a884]/30 transition-colors relative">
+                            {/* NOVO: Emoji Picker */}
+                            {showEmojiPicker && (
+                                <div className="absolute bottom-[110%] left-0 z-50 animate-fade-in shadow-2xl rounded-xl overflow-hidden">
+                                   <EmojiPicker 
+                                      theme={Theme.DARK} 
+                                      onEmojiClick={onEmojiClick}
+                                      width={300}
+                                      height={400}
+                                      searchDisabled={false}
+                                      previewConfig={{ showPreview: false }}
+                                   />
+                                </div>
+                            )}
+
+                            <button 
+                              onClick={() => setShowEmojiPicker(!showEmojiPicker)} 
+                              className="p-1.5 hover:bg-[#374248]/60 rounded-full transition-colors hidden md:block flex-shrink-0"
+                            >
+                              <SmileyIcon />
+                            </button>
                             <input
                                 ref={inputRef}
                                 type="text"
