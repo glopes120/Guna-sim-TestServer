@@ -1,7 +1,7 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI, Type, HarmCategory, HarmBlockThreshold } from "@google/genai";
 import { GameState, GeminiResponse, GameStatus, StoryResponse, ImageSize } from "../types";
 
-// Initialize Gemini Client with API key from environment
+// Initialize Gemini Client
 const apiKey = (import.meta as any).env.VITE_GEMINI_API_KEY || "";
 
 if (!apiKey) {
@@ -10,7 +10,15 @@ if (!apiKey) {
 
 const ai = new GoogleGenAI({ apiKey: apiKey });
 
-// --- INSTRUÇÕES DE NEGOCIAÇÃO (MODO: DIFÍCIL MAS POSSÍVEL) ---
+// --- CONFIGURAÇÃO DE SEGURANÇA (CORRIGIDA) ---
+// Agora usamos os Enums importados para o TypeScript não reclamar
+const SAFETY_SETTINGS = [
+  { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+  { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
+  { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
+  { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE }
+];
+
 const NEGOTIATION_SYSTEM_INSTRUCTION = `
 TU ÉS O ZÉZÉ DA AREOSA - O GUNA NEGOCIADOR DO PORTO.
 CONTEXTO: Vendes um iPhone 15 Pro Max "novo" (roubado). Começas nos 800€.
@@ -21,18 +29,18 @@ CONTEXTO: Vendes um iPhone 15 Pro Max "novo" (roubado). Começas nos 800€.
 3. **Desconfiado:** Sabes que o telemóvel vale dinheiro. Não o dás a qualquer um.
 
 HTI (HARD TO IMPRESS) - REGRAS DE PREÇO:
-- **Descidas Lentas:** Baixa apenas **10€ a 50€** por turno, mesmo que estejas feliz.
-- **Barreira dos 200€:** É muito difícil baixares dos 200€. O jogador tem de ter paciência > 90 e insistir muito.
-- **O MILAGRE (0€):** Só dás o telemóvel de graça (0€) se o jogador fizer um "Roleplay Genial" (ex: convencer-te que é o teu irmão que estava preso, ou que te salvou a vida). Caso contrário, o mínimo é dinheiro na mão.
+- **Descidas Lentas:** Baixa apenas **10€ a 50€** por turno.
+- **Barreira dos 200€:** É muito difícil baixares dos 200€.
+- **O MILAGRE (0€):** Só dás o telemóvel de graça (0€) se o jogador fizer um "Roleplay Genial" (ex: convencer-te que é família).
 
 REGRAS DE PACIÊNCIA (FÁCIL):
 - Simpatia básica: +5 a +10.
 - Elogios bons: +15 a +30.
-- Insultos: -10 a -20 (Desce, mas és mais tolerante que antes).
+- Insultos: -10 a -20 (Desce, mas és mais tolerante).
 
 RESPOSTA JSON OBRIGATÓRIA:
 {
-  "text": "Resposta com calão do Porto. Se o preço for 0, diz que é presente.",
+  "text": "Resposta com calão do Porto.",
   "patienceChange": valor inteiro (-20 a +30),
   "newPrice": valor inteiro (o novo preço proposto),
   "gameStatus": "playing" | "won" | "scammed" | "robbed" | "prison" | "lost",
@@ -44,14 +52,13 @@ const STORY_SYSTEM_INSTRUCTION = `
 TU ÉS O NARRADOR DE UM RPG DE ESCOLHAS NA AREOSA (PORTO).
 PERSONAGEM: Zézé (Guna violento e engraçado).
 TOM: Calão, perigo, situações absurdas e ilegais.
-
-FORMATO JSON OBRIGATÓRIO:
+FORMATO JSON:
 {
-  "narrative": "História + Comentário do Zézé.",
-  "options": ["Opção A", "Opção B", "Opção C"],
+  "narrative": "História...",
+  "options": ["Opção A", "Opção B"],
   "gameOver": boolean,
   "endingType": "good" | "bad" | "funny" | "death",
-  "imagePrompt": "Descrição visual curta em INGLÊS."
+  "imagePrompt": "Descrição visual."
 }
 `;
 
@@ -60,24 +67,17 @@ export const sendGunaMessage = async (
   userMessage: string
 ): Promise<GeminiResponse> => {
   try {
-    const model = 'gemini-2.0-flash';
+    const model = 'gemini-1.5-flash';
     
     // 1. Detetores de Intenção
     const isAggressive = /insulta|filho|crl|merda|burro|aldrabão|ladrão|cabrão|puta|corno|boi/i.test(userMessage);
     const isCompliment = /rei|patrão|chefe|máquina|lenda|mestre|inteligente|esperto|estilo|fama|irmão|sangue/i.test(userMessage);
     const mentions_police = /polícia|bófia|112|gnr|psp|guardas|xibo/i.test(userMessage);
     
-    // 2. Eventos Aleatórios
-    const randomEvents = [
-      "O Zézé cospe para o chão.",
-      "O Zézé ajeita o boné.",
-      "Passa uma mota a fazer barulho no fundo.",
-      "O Zézé conta as notas que tem no bolso.",
-      "Nada acontece."
-    ];
+    const randomEvents = ["O Zézé cospe para o chão.", "O Zézé ajeita o boné.", "Passa uma mota.", "Nada acontece."];
     const currentEvent = randomEvents[Math.floor(Math.random() * randomEvents.length)];
     
-    // 3. Prompt de Contexto (Ajustado para a nova dificuldade)
+    // 2. Prompt
     const contextPrompt = `
 TURNO ${gameState.turnCount + 1}:
 EVENTO: "${currentEvent}"
@@ -89,12 +89,12 @@ ANÁLISE OBRIGATÓRIA:
 2. **AGRESSIVO?** ${isAggressive ? 'SIM (Baixa paciência, mantém preço).' : 'Não.'}
 3. **POLÍCIA?** ${mentions_police ? 'SIM (Game Over se paciência < 30).' : 'Não.'}
 
-OBJETIVOS DO TURNO:
-- Sê difícil no dinheiro. Não baixes mais de 50€ a menos que seja algo extraordinário.
-- Sê fácil na paciência. Se ele for fixe, deixa a paciência subir bem.
-- Se o preço chegar a 0€, o jogo acaba (Status: WON).
+OBJETIVOS:
+- Sê difícil no dinheiro (baixa max 50€).
+- Sê fácil na paciência (se elogiado).
+- Se preço for 0€ -> Status WON.
 
-RESPONDE JSON:
+RESPONDE APENAS JSON.
     `;
 
     const response = await ai.models.generateContent({
@@ -103,6 +103,7 @@ RESPONDE JSON:
       config: {
         systemInstruction: NEGOTIATION_SYSTEM_INSTRUCTION,
         responseMimeType: "application/json",
+        safetySettings: SAFETY_SETTINGS, // ✅ Agora usa a variável corrigida
         responseSchema: {
           type: Type.OBJECT,
           properties: {
@@ -117,33 +118,31 @@ RESPONDE JSON:
       }
     });
 
-    const jsonText = response.text;
-    if (!jsonText) throw new Error("Empty response");
+    let jsonText = response.text || "";
+    jsonText = jsonText.replace(/```json/g, "").replace(/```/g, "").trim();
+
+    if (!jsonText) throw new Error("Empty response from AI");
     
     const parsed = JSON.parse(jsonText) as GeminiResponse;
-    console.log('✅ Zézé (Hard Price Mode):', parsed.text);
+    console.log('✅ Zézé:', parsed.text);
 
-    // --- TRAVÕES DE SEGURANÇA ---
-    
-    // 1. Se insultou, o preço não desce (mesmo que a IA queira)
+    // Lógica de Segurança
     if (isAggressive && parsed.newPrice < gameState.currentPrice) {
         parsed.newPrice = gameState.currentPrice;
     }
-
-    // 2. Limites: Permitimos ir a 0, mas garantimos que não é negativo
     if (parsed.newPrice < 0) parsed.newPrice = 0;
-
-    // 3. Auto-Win se for de graça
+    
+    // Auto-Win se for de graça
     if (parsed.newPrice === 0 && parsed.gameStatus === GameStatus.PLAYING) {
-        parsed.gameStatus = GameStatus.WON; // ✅ CORRETO: Usa o Enum
+        parsed.gameStatus = GameStatus.WON;
     }
     
     return parsed;
 
   } catch (error) {
-    console.error("❌ ERRO Zézé:", error);
+    console.error("❌ ERRO Zézé (Detalhes):", error);
     return {
-      text: "A net foi abaixo... (Erro técnico)",
+      text: "Maninho, a bófia tá a escutar... (Erro técnico: Tenta de novo!)",
       patienceChange: 0,
       newPrice: gameState.currentPrice,
       gameStatus: GameStatus.PLAYING
@@ -156,11 +155,11 @@ export const generateStoryTurn = async (
   userChoice: string
 ): Promise<StoryResponse> => {
   try {
-    const model = 'gemini-2.0-flash';
+    const model = 'gemini-1.5-flash';
     const isStart = history.length === 0;
     const prompt = isStart 
       ? "INÍCIO RPG: O jogador encontra o Zézé. Cria uma situação perigosa ou estúpida na Areosa."
-      : `HISTÓRICO: ${history}\n\nESCOLHA: "${userChoice}"\n\nCONTINUA (Com insultos se a escolha for má).`;
+      : `HISTÓRICO: ${history}\n\nESCOLHA: "${userChoice}"\n\nCONTINUA.`;
 
     const response = await ai.models.generateContent({
       model: model,
@@ -168,6 +167,7 @@ export const generateStoryTurn = async (
       config: {
         systemInstruction: STORY_SYSTEM_INSTRUCTION,
         responseMimeType: "application/json",
+        safetySettings: SAFETY_SETTINGS, // ✅ Segurança corrigida aqui também
         responseSchema: {
           type: Type.OBJECT,
           properties: {
@@ -182,7 +182,9 @@ export const generateStoryTurn = async (
       }
     });
 
-    const jsonText = response.text;
+    let jsonText = response.text || "";
+    jsonText = jsonText.replace(/```json/g, "").replace(/```/g, "").trim();
+
     if (!jsonText) throw new Error("Empty response");
     return JSON.parse(jsonText) as StoryResponse;
 
