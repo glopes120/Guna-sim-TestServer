@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import EmojiPicker, { Theme, EmojiClickData } from 'emoji-picker-react'; //
+import EmojiPicker, { Theme, EmojiClickData } from 'emoji-picker-react';
 import { sendGunaMessage, generateStoryTurn } from './services/geminiService';
 import { GameState, GameStatus, Message, GameStatistics, GameResult, ImageSize, Achievement } from './types';
 import ChatMessage from './components/ChatMessage';
@@ -55,7 +55,7 @@ const SmileyIcon = () => (
   </svg>
 );
 const ClipIcon = () => (
-    <svg viewBox="0 0 24 24" width="24" height="24" className="fill-[#8696a0]">
+    <svg viewBox="0 0 24 24" width="24" height="24" className="fill-current"> {/* Alterado para fill-current */}
         <path d="M1.816 15.556v.002c0 1.502.584 2.912 1.646 3.972s2.472 1.647 3.974 1.647a5.58 5.58 0 0 0 3.972-1.645l9.547-9.548c.769-.768 1.147-1.767 1.058-2.817-.079-.968-.548-1.927-1.319-2.698-1.594-1.592-4.068-1.711-5.517-.262l-7.916 7.915c-.881.881-.792 2.25.214 3.261.959.958 2.423 1.053 3.263.215l5.511-5.512 1.28 1.28-5.514 5.514c-1.497 1.497-3.96 1.429-5.418-.038a3.813 3.813 0 0 1 0-5.384l7.916-7.915c1.211-1.211 3.224-1.211 4.439 0 .609.609.944 1.418.944 2.278 0 .86-.335 1.669-.944 2.278L9.418 17.653a3.633 3.633 0 0 1-2.576 1.079 3.636 3.636 0 0 1-2.577-1.079 3.642 3.642 0 0 1-1.077-2.578 3.655 3.655 0 0 1 1.077-2.578l.002-.001z"></path>
     </svg>
 )
@@ -126,7 +126,10 @@ export default function App() {
   const [showMenu, setShowMenu] = useState(false);
   const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
   const [showQuickReplies, setShowQuickReplies] = useState(false);
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false); // NOVO: Estado para mostrar/esconder o picker
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  
+  // --- NOVO: Estado para a imagem pendente ---
+  const [pendingImage, setPendingImage] = useState<string | null>(null);
   
   const [stats, setStats] = useState<GameStatistics>(loadStats);
 
@@ -267,23 +270,59 @@ export default function App() {
     }
   };
 
+  // --- NOVO: Handler de Upload de Imagem ---
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+        alert("Mano, o Zézé só vê fotos! Nada de documentos.");
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+        const base64String = reader.result as string;
+        setPendingImage(base64String);
+        
+        if (!input) {
+            setInput("Vê lá se aceitas isto como retoma...");
+        }
+        
+        triggerHaptic(10);
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleNegotiationMessage = async (text: string) => {
-    if (!text.trim() || isLoading || isTyping) return;
+    // Permite envio se tiver texto OU se tiver imagem pendente
+    if ((!text.trim() && !pendingImage) || isLoading || isTyping) return;
     
     setShowQuickReplies(false);
-    setShowEmojiPicker(false); // Fecha o picker ao enviar
+    setShowEmojiPicker(false);
     triggerHaptic(10); 
 
     if (isListening) { try { recognitionRef.current.stop(); } catch(e){} }
     if (isAudioEnabled) initAudio();
 
-    const userMsg: Message = { id: Date.now().toString(), sender: 'user', text: text };
+    // Captura a imagem pendente e limpa o estado
+    const imageToSend = pendingImage;
+    setPendingImage(null);
+
+    const userMsg: Message = { 
+        id: Date.now().toString(), 
+        sender: 'user', 
+        text: text,
+        imageUrl: imageToSend || undefined // Mostra a imagem enviada no chat
+    };
+
     setGameState(prev => ({ ...prev, messages: [...prev.messages, userMsg] }));
     setInput('');
     setIsLoading(true);
 
     try {
-      const response = await sendGunaMessage(gameState, text);
+      // Passa a imagem para a nova assinatura do serviço
+      const response = await sendGunaMessage(gameState, text, imageToSend);
       setIsLoading(false);
       setIsTyping(true);
 
@@ -311,6 +350,11 @@ export default function App() {
             text: response.text,
             imageUrl: generatedImageUrl
         };
+        
+        // Se quisesses implementar o recibo falso (opcional), seria aqui:
+        if (response.gameStatus === GameStatus.WON) {
+            // zezeMsg.receipt = { ... }
+        }
 
         const newState = {
           ...gameState,
@@ -357,15 +401,8 @@ export default function App() {
     }
   };
 
-  // NOVO: Handler para clicar no Emoji
   const onEmojiClick = (emojiData: EmojiClickData) => {
     setInput((prev) => prev + emojiData.emoji);
-    // Opcional: Não fechar o picker para permitir selecionar múltiplos
-    // setShowEmojiPicker(false); 
-  };
-
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    console.log('📹 Video uploads disabled');
   };
 
   const startStoryMode = async () => {
@@ -418,7 +455,7 @@ export default function App() {
   const handleMainButtonClick = () => {
     if (gameState.mode === 'negotiation') {
         if (isListening) toggleListening();
-        else if (input.trim()) handleNegotiationMessage(input);
+        else if (input.trim() || pendingImage) handleNegotiationMessage(input); // Aceita se tiver texto ou imagem
         else toggleListening();
     }
   };
@@ -552,7 +589,7 @@ export default function App() {
                     )}
                     <div className="flex items-end gap-1.5 md:gap-2">
                         <div className="flex-1 bg-gradient-to-r from-[#2a3942]/80 to-[#202c33]/80 rounded-[20px] md:rounded-[24px] px-3 md:px-4 py-2 md:py-2.5 flex items-center gap-1.5 md:gap-2 min-h-[42px] md:min-h-[44px] border border-[#2a3942]/50 backdrop-blur-sm hover:border-[#00a884]/30 transition-colors relative">
-                            {/* NOVO: Emoji Picker */}
+                            {/* Emoji Picker */}
                             {showEmojiPicker && (
                                 <div className="absolute bottom-[110%] left-0 z-50 animate-fade-in shadow-2xl rounded-xl overflow-hidden">
                                    <EmojiPicker 
@@ -579,14 +616,22 @@ export default function App() {
                                 onChange={(e) => setInput(e.target.value)}
                                 onKeyDown={(e) => e.key === 'Enter' && handleMainButtonClick()}
                                 disabled={gameState.status !== GameStatus.PLAYING || isLoading || isTyping}
-                                placeholder={isListening ? "🎤 A ouvir..." : (gameState.status === GameStatus.PLAYING ? "Mensagem" : "Bloqueado")}
+                                placeholder={isListening ? "🎤 A ouvir..." : (gameState.status === GameStatus.PLAYING ? (pendingImage ? "Descreve a foto..." : "Mensagem") : "Bloqueado")}
                                 className={`bg-transparent text-[#e9edef] placeholder-[#8696a0] text-[14px] md:text-[15px] flex-1 outline-none w-full font-medium ${isListening ? 'animate-pulse text-[#00a884]' : ''}`}
                             />
                             <input type="file" accept="image/*" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
-                            <button onClick={() => fileInputRef.current?.click()} className={`p-1.5 hover:bg-[#374248]/60 rounded-full transition-all duration-200 flex-shrink-0 ${isGeneratingVideo ? 'animate-spin-smooth text-[#00a884]' : ''}`} disabled={isGeneratingVideo}><ClipIcon /></button>
+                            
+                            {/* Botão de Upload com Feedback Visual */}
+                            <button 
+                              onClick={() => fileInputRef.current?.click()} 
+                              className={`p-1.5 hover:bg-[#374248]/60 rounded-full transition-all duration-200 flex-shrink-0 ${pendingImage ? 'text-[#00a884] animate-pulse' : 'fill-[#8696a0] text-[#8696a0]'}`} 
+                              disabled={isGeneratingVideo}
+                            >
+                                <ClipIcon />
+                            </button>
                         </div>
                         
-                        {gameState.status === GameStatus.PLAYING && input.length === 0 && !isListening && (
+                        {gameState.status === GameStatus.PLAYING && input.length === 0 && !pendingImage && !isListening && (
                             <button onClick={() => handleNegotiationMessage(`ACEITO O NEGÓCIO POR ${gameState.currentPrice} EUROS!`)} className="w-10 md:w-11 h-10 md:h-11 rounded-full flex items-center justify-center shadow-lg bg-gradient-to-r from-[#008f6f] to-[#006b52] hover:from-[#00a884] hover:to-[#008f6f] border-2 border-[#00d9a3]/50 hover:border-[#00d9a3] flex-shrink-0 transition-all active:scale-90 md:hover-lift touch-manipulation"><HandshakeIcon /></button>
                         )}
 
@@ -599,7 +644,7 @@ export default function App() {
                               : 'bg-gradient-to-br from-[#00a884] to-[#008f6f] hover:from-[#00d9a3] hover:to-[#00a884] border-[#00d9a3]/50 hover:border-[#00d9a3] md:hover:shadow-lg md:hover:shadow-[#00a884]/40'
                           }`}
                         >
-                            {isListening ? <MicIcon /> : (input.trim() ? <SendIcon /> : <MicIcon />)}
+                            {isListening ? <MicIcon /> : (input.trim() || pendingImage ? <SendIcon /> : <MicIcon />)}
                         </button>
                     </div>
                 </div>

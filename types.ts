@@ -73,3 +73,13 @@ export interface GameStatistics {
   recentResults: GameResult[];
   achievements: Achievement[]; // NOVO: Lista de conquistas
 }
+
+// Adiciona o campo 'tradeAccepted' à interface GeminiResponse
+export interface GeminiResponse {
+  text: string;
+  patienceChange: number;
+  newPrice: number;
+  gameStatus: GameStatus;
+  imagePrompt?: string;
+  tradeAccepted?: boolean; // <--- NOVO
+}
