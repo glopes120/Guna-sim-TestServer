@@ -124,13 +124,12 @@ FORMATO JSON OBRIGATÓRIO:
 export const sendGunaMessage = async (
   gameState: GameState,
   userMessage: string,
-  userImageBase64?: string | null // <--- NOVO: Argumento para receber a imagem
+  userImageBase64?: string | null
 ): Promise<GeminiResponse> => {
   try {
-    // ⚠️ Modelo que suporta visão (Gemini 2.0 Flash ou 1.5 Flash)
-    const model = 'gemini-2.0-flash'; 
+    const model = 'gemini-2.0-flash';
     
-    // 1. Detetores de Intenção (Para ajudar a IA)
+    // 1. Detetores de Intenção
     const isAggressive = /insulta|filho|crl|merda|burro|aldrabão|ladrão|cabrão|puta|corno|boi/i.test(userMessage);
     const mentions_police = /polícia|bófia|112|gnr|psp|guardas|xibo/i.test(userMessage);
     const hasOffer = /\d+/.test(userMessage);
@@ -138,6 +137,7 @@ export const sendGunaMessage = async (
     const randomEvents = ["O Zézé coça a cabeça.", "Passa um autocarro.", "O Zézé olha para o telemóvel.", "Nada acontece."];
     const currentEvent = randomEvents[Math.floor(Math.random() * randomEvents.length)];
     
+    // 2. Construção do Texto Base
     let contextText = `
 TURNO ${gameState.turnCount + 1}:
 EVENTO: "${currentEvent}"
@@ -145,26 +145,11 @@ ESTADO: Paciência ${gameState.patience}/100 | Preço Atual: ${gameState.current
 JOGADOR DISSE: "${userMessage}"
 `;
 
-    // Preparar o conteúdo para o Gemini (Texto + Imagem Opcional)
-    let promptContent: any[] = [];
-
     if (userImageBase64) {
-       // Instruções específicas para quando há imagem
        contextText += "\n\n🚨 ALERTA: O JOGADOR ENVIOU UMA FOTO PARA TROCA/RETOMA.\nAnalisa a imagem com os teus 'olhos de guna'.\n1. Diz o que vês na foto.\n2. Se for lixo/velho: Goza e RECUSA.\n3. Se for valioso: Desconfia mas ACEITA baixar o preço.";
-       
-       // Remover cabeçalho do base64 se existir (ex: data:image/jpeg;base64,...)
-       const cleanBase64 = userImageBase64.split(',')[1] || userImageBase64;
-       
-       promptContent = [
-         { text: contextText },
-         { inlineData: { mimeType: "image/jpeg", data: cleanBase64 } }
-       ];
-    } else {
-       promptContent = [{ text: contextText }];
     }
 
-    // Adicionar prompt de lógica final ao texto
-    const logicPrompt = `
+    contextText += `
 ANÁLISE OBRIGATÓRIA:
 1. **ELE FEZ UMA OFERTA?** ${hasOffer ? 'SIM. Avalia se é boa.' : 'NÃO.'}
 2. **AGRESSIVO?** ${isAggressive ? 'SIM (Baixa paciência, mantém preço).' : 'Não.'}
@@ -177,18 +162,25 @@ OBJETIVOS:
 - Se a paciência for < 0 -> Status LOST.
 
 RESPONDE APENAS JSON.
-    `;
+`;
 
-    // Se tivermos imagem, o logicPrompt é anexado ao texto do primeiro bloco
+    // 3. Construção das Parts (CORREÇÃO PARA A API)
+    const parts: any[] = [{ text: contextText }];
+
     if (userImageBase64) {
-        promptContent[0].text += logicPrompt;
-    } else {
-        promptContent[0].text += logicPrompt;
+       const cleanBase64 = userImageBase64.split(',')[1] || userImageBase64;
+       parts.push({ 
+         inlineData: { 
+           mimeType: "image/jpeg", 
+           data: cleanBase64 
+         } 
+       });
     }
 
+    // 4. Chamada à API (Estrutura correta para Content)
     const response = await ai.models.generateContent({
       model: model,
-      contents: promptContent as any, // Cast as any para flexibilidade no SDK
+      contents: [{ role: 'user', parts: parts }] as any,
       config: {
         systemInstruction: NEGOTIATION_SYSTEM_INSTRUCTION,
         responseMimeType: "application/json",
@@ -201,7 +193,7 @@ RESPONDE APENAS JSON.
             newPrice: { type: Type.INTEGER },
             gameStatus: { type: Type.STRING, enum: ['playing', 'won', 'lost', 'prison', 'scammed', 'robbed'] },
             imagePrompt: { type: Type.STRING, nullable: true },
-            tradeAccepted: { type: Type.BOOLEAN, nullable: true } // Novo campo
+            tradeAccepted: { type: Type.BOOLEAN, nullable: true }
           },
           required: ['text', 'patienceChange', 'newPrice', 'gameStatus']
         }
@@ -216,10 +208,8 @@ RESPONDE APENAS JSON.
     const parsed = JSON.parse(jsonText) as GeminiResponse;
     console.log('✅ Zézé (Gemini 2.0):', parsed.text);
 
-    // Lógica de Segurança
+    // Lógica de Segurança e Auto-Win se for grátis
     if (parsed.newPrice < 0) parsed.newPrice = 0;
-    
-    // Auto-Win se for de graça e ele aceitar
     if (parsed.newPrice === 0 && parsed.gameStatus === GameStatus.PLAYING) {
         parsed.gameStatus = GameStatus.WON;
     }
@@ -229,7 +219,7 @@ RESPONDE APENAS JSON.
   } catch (error) {
     console.error("❌ ERRO Zézé (Detalhes):", error);
     return {
-      text: "Maninho, falhou a rede aqui na zona... não consegui ver isso. (Erro técnico: Tenta de novo!)",
+      text: "Maninho, a imagem não carregou... tenta mandar outra vez.",
       patienceChange: 0,
       newPrice: gameState.currentPrice,
       gameStatus: GameStatus.PLAYING
@@ -244,13 +234,13 @@ export const generateStoryTurn = async (
   try {
     const model = 'gemini-2.0-flash';
     const isStart = history.length === 0;
-    const HV_prompt = isStart 
+    const prompt = isStart 
       ? "INÍCIO RPG: O jogador encontra o Zézé. Cria uma situação perigosa ou estúpida na Areosa."
       : `HISTÓRICO: ${history}\n\nESCOLHA: "${userChoice}"\n\nCONTINUA.`;
 
     const response = await ai.models.generateContent({
       model: model,
-      contents: [{ text: HV_prompt }],
+      contents: [{ role: 'user', parts: [{ text: prompt }] }] as any,
       config: {
         systemInstruction: STORY_SYSTEM_INSTRUCTION, 
         responseMimeType: "application/json",
