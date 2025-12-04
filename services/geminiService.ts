@@ -68,30 +68,11 @@ CONTEXTO: Vendes um iPhone 15 Pro Max "caído do camião". Começas nos 800€.
 - Se paciência estiver >80 mas preço ainda alto: És generoso na conversa mas firme no dinheiro
 - Ofertas muito baixas fazem-te SUBIR o preço por orgulho ("Agora são 900€ só para te lixar")
 
-🎭 PADRÕES DE RESPOSTA (Variedade Linguística):
-
-**POSITIVO (Paciência sobe):**
-- "Eh pá, tás a ver bem! Tás a ver bem!" (concordância)
-- "Agora sim, agora sim mano!" (aprovação)
-- "És porreiro, gosto de ti!" (simpatia)
-- "Tás fino, tás fino!" (elogio correspondido)
-
-**NEGATIVO (Paciência desce):**
-- "Olha este caralho..." (irritação leve)
-- "Maninho, não me fodas a cabeça!" (irritação média)
-- "Tás a gozar comigo ou quê?!" (irritação forte)
-- "Sai-me da frente antes que te parta todo!" (ameaça final)
-
-**NEGOCIAÇÃO:**
-- "O melhor que faço é X€, palavra!" (oferta firme)
-- "Deixa-me ver... prontos, X€ mas é o último!" (concessão relutante)
-- "Tás maluco? No mínimo X€!" (rejeição de oferta)
-- "X€ e fechamos já o assunto!" (urgência)
-
-**DEFENSIVO (Quando acusam roubo):**
-- "Roubado?! Isso caiu do camião mano!"
-- "Não sei de onde vem isso pá, a sério!"
-- "Olha, se não queres tá bem, há mais quem queira!"
+**REGRAS PARA ANÁLISE DE FOTOS (Trocas/Retomas):**
+- Se o jogador enviar uma foto:
+  1. **LIXO/VELHO:** Se for algo sujo, estragado ou barato (ex: banana, sapatilhas rotas), SENTE-TE INSULTADO. Recusa a troca e insulta.
+  2. **VALIOSO:** Se for ouro, relógio caro, mota, etc. DESCONFIA (pode ser roubado também). Mas aceita baixar o preço significativamente.
+  3. **ESTRANHO:** Se for algo aleatório, goza com a situação.
 
 🎯 CONDIÇÕES DE VITÓRIA/DERROTA (CONTEXTO: WHATSAPP):
 
@@ -114,11 +95,12 @@ CONTEXTO: Vendes um iPhone 15 Pro Max "caído do camião". Começas nos 800€.
 
 RESPOSTA JSON OBRIGATÓRIA:
 {
-  "text": "Resposta natural com calão do Porto, variando expressões. Se negócio fechado: menciona encontro (local+hora) OU MBWay (número). Se game over: indica bloqueio/apagar conta.",
+  "text": "Resposta natural com calão do Porto, variando expressões. Se for sobre a FOTO, comenta especificamente o que vês na imagem.",
   "patienceChange": valor inteiro (-40 a +40),
   "newPrice": valor inteiro (lógica realista de descida),
   "gameStatus": "playing" | "won" | "lost" | "prison" | "scammed" | "robbed",
-  "imagePrompt": null
+  "imagePrompt": null,
+  "tradeAccepted": boolean (true se aceitaste a retoma da foto, false caso contrário)
 }
 `;
 
@@ -141,10 +123,11 @@ FORMATO JSON OBRIGATÓRIO:
 
 export const sendGunaMessage = async (
   gameState: GameState,
-  userMessage: string
+  userMessage: string,
+  userImageBase64?: string | null // <--- NOVO: Argumento para receber a imagem
 ): Promise<GeminiResponse> => {
   try {
-    // ⚠️ MUDANÇA IMPORTANTE: Modelo atualizado para versão mais recente
+    // ⚠️ Modelo que suporta visão (Gemini 2.0 Flash ou 1.5 Flash)
     const model = 'gemini-2.0-flash'; 
     
     // 1. Detetores de Intenção (Para ajudar a IA)
@@ -155,16 +138,38 @@ export const sendGunaMessage = async (
     const randomEvents = ["O Zézé coça a cabeça.", "Passa um autocarro.", "O Zézé olha para o telemóvel.", "Nada acontece."];
     const currentEvent = randomEvents[Math.floor(Math.random() * randomEvents.length)];
     
-    const contextPrompt = `
+    let contextText = `
 TURNO ${gameState.turnCount + 1}:
 EVENTO: "${currentEvent}"
 ESTADO: Paciência ${gameState.patience}/100 | Preço Atual: ${gameState.currentPrice}€
 JOGADOR DISSE: "${userMessage}"
+`;
 
+    // Preparar o conteúdo para o Gemini (Texto + Imagem Opcional)
+    let promptContent: any[] = [];
+
+    if (userImageBase64) {
+       // Instruções específicas para quando há imagem
+       contextText += "\n\n🚨 ALERTA: O JOGADOR ENVIOU UMA FOTO PARA TROCA/RETOMA.\nAnalisa a imagem com os teus 'olhos de guna'.\n1. Diz o que vês na foto.\n2. Se for lixo/velho: Goza e RECUSA.\n3. Se for valioso: Desconfia mas ACEITA baixar o preço.";
+       
+       // Remover cabeçalho do base64 se existir (ex: data:image/jpeg;base64,...)
+       const cleanBase64 = userImageBase64.split(',')[1] || userImageBase64;
+       
+       promptContent = [
+         { text: contextText },
+         { inlineData: { mimeType: "image/jpeg", data: cleanBase64 } }
+       ];
+    } else {
+       promptContent = [{ text: contextText }];
+    }
+
+    // Adicionar prompt de lógica final ao texto
+    const logicPrompt = `
 ANÁLISE OBRIGATÓRIA:
-1. **ELE FEZ UMA OFERTA?** ${hasOffer ? 'SIM. Avalia se é boa.' : 'NÃO. Se só pede desconto sem números, sê forreta.'}
+1. **ELE FEZ UMA OFERTA?** ${hasOffer ? 'SIM. Avalia se é boa.' : 'NÃO.'}
 2. **AGRESSIVO?** ${isAggressive ? 'SIM (Baixa paciência, mantém preço).' : 'Não.'}
 3. **POLÍCIA?** ${mentions_police ? 'SIM (Ameaça bazar).' : 'Não.'}
+4. **TEM FOTO?** ${userImageBase64 ? 'SIM (Comenta a foto!).' : 'Não.'}
 
 OBJETIVOS:
 - Sê "bacano" na conversa mas TCHENO (forreta) no dinheiro.
@@ -174,9 +179,16 @@ OBJETIVOS:
 RESPONDE APENAS JSON.
     `;
 
+    // Se tivermos imagem, o logicPrompt é anexado ao texto do primeiro bloco
+    if (userImageBase64) {
+        promptContent[0].text += logicPrompt;
+    } else {
+        promptContent[0].text += logicPrompt;
+    }
+
     const response = await ai.models.generateContent({
       model: model,
-      contents: contextPrompt,
+      contents: promptContent as any, // Cast as any para flexibilidade no SDK
       config: {
         systemInstruction: NEGOTIATION_SYSTEM_INSTRUCTION,
         responseMimeType: "application/json",
@@ -188,7 +200,8 @@ RESPONDE APENAS JSON.
             patienceChange: { type: Type.INTEGER },
             newPrice: { type: Type.INTEGER },
             gameStatus: { type: Type.STRING, enum: ['playing', 'won', 'lost', 'prison', 'scammed', 'robbed'] },
-            imagePrompt: { type: Type.STRING, nullable: true }
+            imagePrompt: { type: Type.STRING, nullable: true },
+            tradeAccepted: { type: Type.BOOLEAN, nullable: true } // Novo campo
           },
           required: ['text', 'patienceChange', 'newPrice', 'gameStatus']
         }
@@ -216,7 +229,7 @@ RESPONDE APENAS JSON.
   } catch (error) {
     console.error("❌ ERRO Zézé (Detalhes):", error);
     return {
-      text: "Maninho, falhou a rede aqui na zona... (Erro técnico: Tenta de novo!)",
+      text: "Maninho, falhou a rede aqui na zona... não consegui ver isso. (Erro técnico: Tenta de novo!)",
       patienceChange: 0,
       newPrice: gameState.currentPrice,
       gameStatus: GameStatus.PLAYING
@@ -229,15 +242,15 @@ export const generateStoryTurn = async (
   userChoice: string
 ): Promise<StoryResponse> => {
   try {
-    const model = 'gemini-2.0-flash'; // ⚠️ MUDANÇA IMPORTANTE AQUI TAMBÉM
+    const model = 'gemini-2.0-flash';
     const isStart = history.length === 0;
-    const prompt = isStart 
+    const HV_prompt = isStart 
       ? "INÍCIO RPG: O jogador encontra o Zézé. Cria uma situação perigosa ou estúpida na Areosa."
       : `HISTÓRICO: ${history}\n\nESCOLHA: "${userChoice}"\n\nCONTINUA.`;
 
     const response = await ai.models.generateContent({
       model: model,
-      contents: prompt,
+      contents: [{ text: HV_prompt }],
       config: {
         systemInstruction: STORY_SYSTEM_INSTRUCTION, 
         responseMimeType: "application/json",
