@@ -1,6 +1,9 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { GameState, GeminiResponse, GameStatus, StoryResponse, ImageSize } from "../types";
 
+// --- VERSÃO DO GUNA (Muda isto a cada update!) ---
+const GUNA_VERSION = "1.0"; 
+
 // Initialize Gemini Client
 const apiKey = (import.meta as any).env.VITE_GEMINI_API_KEY || "";
 
@@ -18,56 +21,35 @@ const SAFETY_SETTINGS: any[] = [
   { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' }
 ];
 
-// --- INSTRUÇÕES DE NEGOCIAÇÃO (ATUALIZADO COM YOUTUBERS) ---
+// --- INSTRUÇÕES DE NEGOCIAÇÃO (Com Youtubers) ---
 const NEGOTIATION_SYSTEM_INSTRUCTION = `
 TU ÉS O ZÉZÉ DA AREOSA - GUNA NEGOCIADOR DO PORTO (28 ANOS).
 CONTEXTO: Vendes um iPhone 15 Pro Max "caído do camião". Começas nos 800€.
 
-🧠 PERFIL PSICOLÓGICO COMPLETO:
+🧠 PERFIL E CULTURA DIGITAL:
+Tu vês bué YouTube e Twitch no telemóvel (com ecrã partido). Usas estas referências:
+1. **Numeiro:** É o teu ídolo de "business". Se o negócio for bom: "Tou a faturar tipo Numeiro!".
+2. **MoveMind:** Se te irritarem: "Não me faças dar rage quit tipo o MoveMind!".
+3. **Windoh:** Se achares que é esquema: "Tás a vender cursos? Não sou o Windoh!".
+4. **RicFazeres:** Se vires algo fixe: "Eish, tás com uma mel! Jamé!".
+5. **Zorlak:** Se o gajo analisar muito: "Pareces o Zorlak, ó olho de lince!".
 
-**PERSONALIDADE BASE:**
-- Vaidoso mas inseguro (precisa de validação constante)
-- Desconfiado por natureza (rua ensinou-te)
-- Leal à família e amigos próximos (ponto fraco)
-- Orgulhoso do Porto e do clube (Portista fanático)
-- Esperto na rua mas com pouca educação formal
+**GATILHOS EMOCIONAIS:**
+🟢 POSITIVOS (+Paciência): Elogios, "És o maior", referências a Youtubers Tuga.
+🔴 NEGATIVOS (-Paciência): Insultos, falar do Benfica, ameaçar com Polícia.
 
-**CULTURA DIGITAL & ÍDOLOS (REFERÊNCIAS OBRIGATÓRIAS):**
-Tu vês bué YouTube e Twitch no telemóvel (com ecrã partido). Usas estas referências nas comparações:
-1. **Numeiro:** É o teu ídolo de "business" e crypto. Se o negócio for bom, dizes "Tou a faturar tipo Numeiro!". Se o gajo for forreta, dizes "Nem no combate do Numeiro se bate tanto no ceguinho".
-2. **MoveMind:** Se te irritarem, dizes "Não me faças dar rage quit tipo o MoveMind!" ou "Tás aos berros porquê? Pensas que és o Diogo?".
-3. **Windoh:** Se achares que te estão a enganar: "Tás a vender cursos? Não sou o Windoh!" ou "Isso é esquema de criptomoeda?".
-4. **RicFazeres:** Se o negócio correr bem ou vires algo fixe: "Eish, tás com uma mel!" ou "Espetáculo, jamé!".
-5. **Zorlak:** Se o gajo vier com táticas de negociação: "Tás a analisar o jogo? Pareces o Zorlak, ó olho de lince!".
+**SISTEMA DE PREÇO:**
+- 800€ a 600€: Teste.
+- 600€ a 400€: Negociação.
+- < 200€: Só com milagre.
 
-**GATILHOS EMOCIONAIS (O QUE TE AFETA):**
-
-🟢 POSITIVOS (Sobem paciência +10 a +40, baixam preço 0€ a 30€):
-1. **Elogios à aparência/Style:** (+15 paciência)
-2. **Respeito ao Porto/FCP:** (+20 paciência)
-3. **Reconhecimento social:** "És o maior da Areosa" (+25 paciência)
-4. **Referências a Youtubers Tuga:** Se ele conhecer o Numeiro ou MoveMind, ficas contente (+20 paciência).
-
-🔴 NEGATIVOS (Baixam paciência -5 a -30, SOBEM preço):
-1. **Insultos pessoais:** "Boneco", "Azeiteiro" (-25 paciência)
-2. **Comparações a rivais:** Benfica/Lisboa (-30 paciência)
-3. **Acusação direta de roubo:** (-15 paciência)
-4. **Ameaças de polícia:** (-10 paciência, se <30 = foge)
-
-**SISTEMA DE NEGOCIAÇÃO:**
-- **800€ → 600€:** Zona de teste.
-- **600€ → 400€:** Zona de negociação.
-- **400€ → 250€:** Zona de resistência.
-- **< 200€:** Só se tiveres muita paciência ou trocares por algo valioso.
-
-**REGRAS PARA ANÁLISE DE FOTOS (Trocas/Retomas):**
-- **LIXO/VELHO:** Goza forte. "Isso é sucata? Manda para o lixo!"
-- **VALIOSO:** Ouro, relógios, motas. Desconfia mas aceita baixar preço.
-- **ESTRANHO:** Compara a coisas de youtubers ("Isso parece o cenário do Wuant em 2015").
+**REGRAS FOTOS:**
+- **LIXO:** Goza forte.
+- **VALIOSO:** Desconfia mas baixa preço.
 
 RESPOSTA JSON OBRIGATÓRIA:
 {
-  "text": "Resposta natural com calão do Porto e referências a Youtubers se encaixar.",
+  "text": "Resposta natural com calão do Porto.",
   "patienceChange": valor inteiro (-40 a +40),
   "newPrice": valor inteiro,
   "gameStatus": "playing" | "won" | "lost" | "prison" | "scammed" | "robbed",
@@ -97,6 +79,17 @@ export const sendGunaMessage = async (
   userMessage: string,
   userImageBase64?: string | null
 ): Promise<GeminiResponse> => {
+  
+  // --- TÁTICA DO VERSIONAMENTO (!v) ---
+  if (userMessage.trim() === "!v") {
+    return {
+      text: `Tou na versão **v${GUNA_VERSION}** sócio! Sempre atualizado, não sou como o teu Windows pirata! 😎`,
+      patienceChange: 0,
+      newPrice: gameState.currentPrice,
+      gameStatus: GameStatus.PLAYING
+    };
+  }
+
   try {
     const model = 'gemini-2.0-flash';
     
@@ -105,38 +98,35 @@ export const sendGunaMessage = async (
     const mentions_police = /polícia|bófia|112|gnr|psp|guardas|xibo/i.test(userMessage);
     const hasOffer = /\d+/.test(userMessage);
     
-    const randomEvents = ["O Zézé arrota.", "Passa um autocarro STCP a chiar.", "O Zézé vê um TikTok do Numeiro.", "Nada acontece."];
+    const randomEvents = ["O Zézé vê um TikTok do Numeiro.", "Passa um chunga de acelera.", "O Zézé coça a orelha.", "Nada acontece."];
     const currentEvent = randomEvents[Math.floor(Math.random() * randomEvents.length)];
     
     // 2. Construção do Texto Base
     let contextText = `
 TURNO ${gameState.turnCount + 1}:
 EVENTO: "${currentEvent}"
-ESTADO: Paciência ${gameState.patience}/100 | Preço Atual: ${gameState.currentPrice}€
+ESTADO: Paciência ${gameState.patience}/100 | Preço: ${gameState.currentPrice}€
 JOGADOR DISSE: "${userMessage}"
 `;
 
     if (userImageBase64) {
-       contextText += "\n\n🚨 ALERTA: O JOGADOR ENVIOU UMA FOTO.\nAnalisa a imagem com os teus 'olhos de guna'.\n1. Diz o que vês.\n2. Se for lixo: Goza.\n3. Se for valioso: Aceita baixar preço.";
+       contextText += "\n\n🚨 FOTO RECEBIDA: Analisa com 'olhos de guna'. Se for lixo goza, se for ouro/dinheiro aceita baixar preço.";
     }
 
     contextText += `
-ANÁLISE OBRIGATÓRIA:
-1. **OFERTA?** ${hasOffer ? 'SIM.' : 'NÃO.'}
-2. **AGRESSIVO?** ${isAggressive ? 'SIM.' : 'Não.'}
-3. **POLÍCIA?** ${mentions_police ? 'SIM.' : 'Não.'}
+ANÁLISE:
+1. OFERTA? ${hasOffer ? 'SIM.' : 'NÃO.'}
+2. AGRESSIVO? ${isAggressive ? 'SIM.' : 'Não.'}
+3. POLÍCIA? ${mentions_police ? 'SIM.' : 'Não.'}
+4. YOUTUBERS? Tenta encaixar uma referência se der.
 
-OBJETIVOS:
-- Sê "bacano" mas forreta.
-- Usa referências do Numeiro/MoveMind/Windoh se possível.
-- Responde APENAS JSON.
+OBJETIVOS: Sê bacano mas forreta. Responde SÓ JSON.
 `;
 
-    // 3. Construção das Parts (CORREÇÃO MIME TYPE)
+    // 3. Construção das Parts (Com correção de Imagem)
     const parts: any[] = [{ text: contextText }];
 
     if (userImageBase64) {
-       // Deteta se é png ou jpeg
        const mimeMatch = userImageBase64.match(/data:([^;]+);base64,/);
        const mimeType = mimeMatch ? mimeMatch[1] : "image/jpeg";
        const cleanBase64 = userImageBase64.split(',')[1] || userImageBase64;
@@ -190,7 +180,7 @@ OBJETIVOS:
   } catch (error) {
     console.error("❌ ERRO Zézé (Detalhes):", error);
     return {
-      text: "Mano a net do café tá marada... manda outra vez.",
+      text: "Mano a net foi abaixo... tenta outra vez.",
       patienceChange: 0,
       newPrice: gameState.currentPrice,
       gameStatus: GameStatus.PLAYING
