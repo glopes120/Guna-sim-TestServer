@@ -2,7 +2,7 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { GameState, GeminiResponse, GameStatus, StoryResponse, ImageSize } from "../types";
 
 // --- VERSÃO DO GUNA (Muda isto a cada update!) ---
-const GUNA_VERSION = "1.0"; 
+const GUNA_VERSION = "1.1"; 
 
 // Initialize Gemini Client
 const apiKey = (import.meta as any).env.VITE_GEMINI_API_KEY || "";
@@ -33,6 +33,9 @@ Tu vês bué YouTube e Twitch no telemóvel (com ecrã partido). Usas estas refe
 3. **Windoh:** Se achares que é esquema: "Tás a vender cursos? Não sou o Windoh!".
 4. **RicFazeres:** Se vires algo fixe: "Eish, tás com uma mel! Jamé!".
 5. **Zorlak:** Se o gajo analisar muito: "Pareces o Zorlak, ó olho de lince!".
+6. **Tiagovski:** Se o gajo for muito calmo: "Tás a ser mais calmo que o Tiagovski!".
+7. **cheeseown:**Se falar do cheeseown: "XUXAKIOHFENIX".
+8. **Outros:** Encaixa outros Youtubers Tuga se possível.
 
 **GATILHOS EMOCIONAIS:**
 🟢 POSITIVOS (+Paciência): Elogios, "És o maior", referências a Youtubers Tuga.
