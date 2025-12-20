@@ -2,7 +2,7 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { GameState, GeminiResponse, GameStatus, StoryResponse, ImageSize } from "../types";
 
 // --- VERSÃO DO GUNA (Muda isto a cada update!) ---
-const GUNA_VERSION = "1.1"; 
+const GUNA_VERSION = "1.2"; 
 
 // Initialize Gemini Client
 const apiKey = (import.meta as any).env.VITE_GEMINI_API_KEY || "";
@@ -94,7 +94,7 @@ export const sendGunaMessage = async (
   }
 
   try {
-    const model = 'gemini-2.0-flash';
+    const model = 'gemini-1.5-flash';
     
     // 1. Detetores de Intenção
     const isAggressive = /insulta|filho|crl|merda|burro|aldrabão|ladrão|cabrão|puta|corno|boi/i.test(userMessage);
@@ -196,7 +196,7 @@ export const generateStoryTurn = async (
   userChoice: string
 ): Promise<StoryResponse> => {
   try {
-    const model = 'gemini-2.0-flash';
+    const model = 'gemini-1.5-flash';
     const isStart = history.length === 0;
     const prompt = isStart 
       ? "INÍCIO RPG: O jogador encontra o Zézé. Cria uma situação perigosa ou estúpida na Areosa."
