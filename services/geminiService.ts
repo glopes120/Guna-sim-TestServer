@@ -1,7 +1,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { GameState, GeminiResponse, GameStatus, StoryResponse, ImageSize } from "../types";
 
-// --- VERSÃO DO GUNA (Muda isto a cada update!) ---
+// --- VERSÃO DO GUNA ---
 const GUNA_VERSION = "1.2.1"; 
 
 // Initialize Gemini Client
@@ -12,6 +12,56 @@ if (!apiKey) {
 }
 
 const ai = new GoogleGenAI({ apiKey: apiKey });
+
+// --- LISTA DE MODELOS DE RESGATE (FALLBACK) ---
+// O sistema tenta estes modelos por ordem até um funcionar
+const MODELS_TO_TRY = [
+  'gemini-2.0-flash-exp',   // 1. Tenta o mais recente (com Youtubers etc)
+  'gemini-1.5-flash',       // 2. Fallback rápido
+  'gemini-1.5-pro',         // 3. Fallback inteligente
+  'gemini-1.5-flash-8b'     // 4. Fallback de emergência
+];
+
+// --- FUNÇÃO ROBUSTA DE GERAÇÃO (Tenta vários modelos) ---
+async function generateWithFallback(contents: any, config: any) {
+  let lastError = null;
+
+  for (const modelName of MODELS_TO_TRY) {
+    try {
+      const response = await ai.models.generateContent({
+        model: modelName,
+        contents: contents,
+        config: config
+      });
+
+      let jsonText = response.text || "";
+      jsonText = jsonText.replace(/```json/g, "").replace(/```/g, "").trim();
+      
+      if (!jsonText) throw new Error("Resposta vazia da IA");
+      
+      return JSON.parse(jsonText); // Sucesso!
+
+    } catch (error: any) {
+      console.warn(`⚠️ Falha no modelo ${modelName}:`, error.message || error);
+      lastError = error;
+      
+      // Se for erro de rede, quota (429) ou não encontrado (404), tenta o próximo
+      const isRecoverable = error.message && (
+        error.message.includes('429') || 
+        error.message.includes('404') || 
+        error.message.includes('not found') ||
+        error.message.includes('quota') ||
+        error.message.includes('overloaded')
+      );
+
+      if (isRecoverable) {
+        continue; // Tenta o próximo modelo da lista
+      }
+      break; // Se for outro erro (ex: código inválido), para aqui
+    }
+  }
+  throw lastError; // Se todos falharem
+}
 
 // --- CONFIGURAÇÃO DE SEGURANÇA ---
 const SAFETY_SETTINGS: any[] = [
@@ -34,7 +84,7 @@ Tu vês bué YouTube e Twitch no telemóvel (com ecrã partido). Usas estas refe
 4. **RicFazeres:** Se vires algo fixe: "Eish, tás com uma mel! Jamé!".
 5. **Zorlak:** Se o gajo analisar muito: "Pareces o Zorlak, ó olho de lince!".
 6. **Tiagovski:** Se o gajo for muito calmo: "Tás a ser mais calmo que o Tiagovski!".
-7. **cheeseown:**Se falar do cheeseown: "XUXAKIOHFENIX".
+7. **cheeseown:** Se falar do cheeseown: "XUXAKIOHFENIX".
 8. **Outros:** Encaixa outros Youtubers Tuga se possível.
 
 **GATILHOS EMOCIONAIS:**
@@ -94,8 +144,6 @@ export const sendGunaMessage = async (
   }
 
   try {
-    const model = 'gemini-2.0-flash';
-    
     // 1. Detetores de Intenção
     const isAggressive = /insulta|filho|crl|merda|burro|aldrabão|ladrão|cabrão|puta|corno|boi/i.test(userMessage);
     const mentions_police = /polícia|bófia|112|gnr|psp|guardas|xibo/i.test(userMessage);
@@ -142,11 +190,9 @@ OBJETIVOS: Sê bacano mas forreta. Responde SÓ JSON.
        });
     }
 
-    // 4. Chamada à API
-    const response = await ai.models.generateContent({
-      model: model,
-      contents: [{ role: 'user', parts: parts }] as any,
-      config: {
+    // 4. Chamada à API com FALLBACK
+    const contents = [{ role: 'user', parts: parts }];
+    const config = {
         systemInstruction: NEGOTIATION_SYSTEM_INSTRUCTION,
         responseMimeType: "application/json",
         safetySettings: SAFETY_SETTINGS,
@@ -162,15 +208,9 @@ OBJETIVOS: Sê bacano mas forreta. Responde SÓ JSON.
           },
           required: ['text', 'patienceChange', 'newPrice', 'gameStatus']
         }
-      }
-    });
+    };
 
-    let jsonText = response.text || "";
-    jsonText = jsonText.replace(/```json/g, "").replace(/```/g, "").trim();
-
-    if (!jsonText) throw new Error("Empty response from AI");
-    
-    const parsed = JSON.parse(jsonText) as GeminiResponse;
+    const parsed = await generateWithFallback(contents, config) as GeminiResponse;
     
     // Auto-Win lógico
     if (parsed.newPrice < 0) parsed.newPrice = 0;
@@ -183,7 +223,7 @@ OBJETIVOS: Sê bacano mas forreta. Responde SÓ JSON.
   } catch (error) {
     console.error("❌ ERRO Zézé (Detalhes):", error);
     return {
-      text: "Mano a net foi abaixo... tenta outra vez.",
+      text: "Mano a net foi abaixo... tenta outra vez. (Erro de servidor)",
       patienceChange: 0,
       newPrice: gameState.currentPrice,
       gameStatus: GameStatus.PLAYING
@@ -196,16 +236,13 @@ export const generateStoryTurn = async (
   userChoice: string
 ): Promise<StoryResponse> => {
   try {
-    const model = 'gemini-2.0-flash';
     const isStart = history.length === 0;
     const prompt = isStart 
       ? "INÍCIO RPG: O jogador encontra o Zézé. Cria uma situação perigosa ou estúpida na Areosa."
       : `HISTÓRICO: ${history}\n\nESCOLHA: "${userChoice}"\n\nCONTINUA.`;
 
-    const response = await ai.models.generateContent({
-      model: model,
-      contents: [{ role: 'user', parts: [{ text: prompt }] }] as any,
-      config: {
+    const contents = [{ role: 'user', parts: [{ text: prompt }] }];
+    const config = {
         systemInstruction: STORY_SYSTEM_INSTRUCTION, 
         responseMimeType: "application/json",
         safetySettings: SAFETY_SETTINGS,
@@ -220,14 +257,10 @@ export const generateStoryTurn = async (
           },
           required: ['narrative', 'options', 'gameOver']
         }
-      }
-    });
+    };
 
-    let jsonText = response.text || "";
-    jsonText = jsonText.replace(/```json/g, "").replace(/```/g, "").trim();
-
-    if (!jsonText) throw new Error("Empty response");
-    return JSON.parse(jsonText) as StoryResponse;
+    const parsed = await generateWithFallback(contents, config) as StoryResponse;
+    return parsed;
 
   } catch (error) {
     console.error("❌ ERRO Story:", error);
