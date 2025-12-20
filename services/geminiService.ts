@@ -94,7 +94,7 @@ export const sendGunaMessage = async (
   }
 
   try {
-    const model = 'gemini-1.5-flash';
+    const model = 'gemini-1.5-flash-latest-latest';
     
     // 1. Detetores de Intenção
     const isAggressive = /insulta|filho|crl|merda|burro|aldrabão|ladrão|cabrão|puta|corno|boi/i.test(userMessage);
@@ -196,7 +196,7 @@ export const generateStoryTurn = async (
   userChoice: string
 ): Promise<StoryResponse> => {
   try {
-    const model = 'gemini-1.5-flash';
+    const model = 'gemini-1.5-flash-latest';
     const isStart = history.length === 0;
     const prompt = isStart 
       ? "INÍCIO RPG: O jogador encontra o Zézé. Cria uma situação perigosa ou estúpida na Areosa."
